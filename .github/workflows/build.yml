@@ -39,7 +39,7 @@ jobs:
           ./gradlew bundleRelease \
             -Pandroid.injected.signing.store.file=$GITHUB_WORKSPACE/android/app/release.keystore \
             -Pandroid.injected.signing.store.password=${{ secrets.ANDROID_KEYSTORE_PASSWORD }} \
-            -Pandroid.injected.signing.key.alias=upload \
+            -Pandroid.injected.signing.key.alias=mealgenna \
             -Pandroid.injected.signing.key.password=${{ secrets.ANDROID_KEY_PASSWORD }}
 
       - name: Upload .aab Artifact
@@ -77,7 +77,7 @@ jobs:
           profile-type: 'IOS_APP_STORE'
           issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           api-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          api-key-content: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+          api-private-key: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
 
       - name: Build iOS Archive (.ipa)
         run: |

@@ -36,34 +36,49 @@ jobs:
           echo "----------------- COPY THE PRIVATE KEY BELOW -----------------"
           cat private.key
           
-      - name: Step 2 - Create P12
+      - name: Step 2 - Create P12 (Python Version)
         if: ${{ github.event.inputs.step == '2-create-p12' }}
-        shell: bash
+        shell: python
         env:
           RAW_PRIVATE_KEY: ${{ github.event.inputs.private_key }}
           RAW_CERT_BASE64: ${{ github.event.inputs.cert_base64 }}
+          P12_PASSWORD: ${{ github.event.inputs.p12_password }}
         run: |
-          # Clean inputs: remove quotes and whitespace
-          echo "$RAW_PRIVATE_KEY" | tr -d '"' > private.key
-          echo "$RAW_CERT_BASE64" | tr -d '" '" | tr -d '\n\r' > cert_cleaned.txt
-          
-          if [ ! -s cert_cleaned.txt ]; then
-            echo "Error: Cert Base64 input is empty!"
-            exit 1
-          fi
+          import os
+          import base64
+          import subprocess
 
-          # Use openssl for more robust base64 decoding
-          openssl base64 -d -A -in cert_cleaned.txt -out distribution.cer
-          
-          # Check if the file was created and is not empty
-          if [ ! -s distribution.cer ]; then
-            echo "Error: Failed to decode certificate!"
-            exit 1
-          fi
+          # Get inputs safely from environment
+          pk = os.environ.get('RAW_PRIVATE_KEY', '').replace('"', '').strip()
+          cb64 = os.environ.get('RAW_CERT_BASE64', '').replace('"', '').replace(' ', '').replace('\n', '').replace('\r', '').strip()
+          pw = os.environ.get('P12_PASSWORD', 'MealMind2026')
 
-          openssl x509 -in distribution.cer -inform DER -out distribution.crt
-          openssl pkcs12 -export -out release.p12 -inkey private.key -in distribution.crt -password pass:${{ github.event.inputs.p12_password }}
+          if not pk or not cb64:
+              print("Error: Private Key or Certificate Base64 is missing!")
+              exit(1)
+
+          # Save Private Key
+          with open('private.key', 'w') as f:
+              f.write(pk)
+
+          # Decode Certificate
+          try:
+              cert_data = base64.b64decode(cb64)
+              with open('distribution.cer', 'wb') as f:
+                  f.write(cert_data)
+          except Exception as e:
+              print(f"Error decoding base64: {e}")
+              exit(1)
+
+          # Step 2a: Convert DER to CRT
+          subprocess.run(['openssl', 'x509', '-in', 'distribution.cer', '-inform', 'DER', '-out', 'distribution.crt'], check=True)
           
-          echo "----------------- YOUR P12 IS READY -----------------"
-          echo "Copy the block below and save it as your P12_BASE64 secret in GitHub:"
-          openssl base64 -in release.p12 -A
+          # Step 2b: Create P12
+          subprocess.run(['openssl', 'pkcs12', '-export', '-out', 'release.p12', '-inkey', 'private.key', '-in', 'distribution.crt', '-password', f'pass:{pw}'], check=True)
+
+          # Step 2c: Output Final Base64
+          print("\n----------------- YOUR P12 IS READY -----------------")
+          with open('release.p12', 'rb') as f:
+              p12_content = f.read()
+              print(base64.b64encode(p12_content).decode('utf-8'))
+          print("----------------- END OF BASE64 -----------------")

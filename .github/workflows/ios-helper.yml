@@ -2,28 +2,47 @@ name: iOS Certificate Helper
 
 on:
   workflow_dispatch:
+    inputs:
+      step:
+        description: 'Which step to run'
+        required: true
+        default: '1-generate-csr'
+        type: choice
+        options:
+          - '1-generate-csr'
+          - '2-create-p12'
+      private_key:
+        description: 'Paste the Private Key (for Step 2)'
+        required: false
+      cert_base64:
+        description: 'Paste the .cer base64 from PowerShell (for Step 2)'
+        required: false
+      p12_password:
+        description: 'Choose a password for your .p12'
+        required: false
+        default: 'MealMind2026'
 
 jobs:
-  generate-csr:
+  helper:
     runs-on: macos-latest
     steps:
-      - name: Generate Private Key and CSR
+      - name: Step 1 - Generate CSR
+        if: ${{ github.event.inputs.step == '1-generate-csr' }}
         run: |
           openssl genrsa -out private.key 2048
           openssl req -new -key private.key -out request.csr -subj "/Email=shemh@example.com/CN=MealGenna/C=US"
-          echo "----------------- COPY EVERYTHING BELOW THIS LINE (THE CSR) -----------------"
+          echo "----------------- COPY THE CSR BELOW -----------------"
           cat request.csr
-          echo ""
-          echo "----------------- STOP COPYING ABOVE THIS LINE -----------------"
-          
-          echo ""
-          echo "----------------- COPY EVERYTHING BELOW THIS LINE (THE PRIVATE KEY) -----------------"
+          echo "----------------- COPY THE PRIVATE KEY BELOW -----------------"
           cat private.key
-          echo ""
-          echo "----------------- STOP COPYING ABOVE THIS LINE -----------------"
           
-      - name: Instructions
+      - name: Step 2 - Create P12
+        if: ${{ github.event.inputs.step == '2-create-p12' }}
         run: |
-          echo "1. Save the CSR text as 'ios.csr' and upload it to the Apple Developer Portal."
-          echo "2. Download the 'distribution.cer' from Apple."
-          echo "3. Come back here for the next step where we combine them into a .p12!"
+          echo "${{ github.event.inputs.private_key }}" > private.key
+          echo "${{ github.event.inputs.cert_base64 }}" | base64 --decode > distribution.cer
+          openssl x509 -in distribution.cer -inform DER -out distribution.crt
+          openssl pkcs12 -export -out release.p12 -inkey private.key -in distribution.crt -password pass:${{ github.event.inputs.p12_password }}
+          echo "----------------- YOUR P12 IS READY -----------------"
+          echo "Copy the block below and save it as your P12_BASE64 secret in GitHub:"
+          base64 -i release.p12

@@ -217,7 +217,7 @@ async function generateFromPreferences() {
   // Bot Protection (Placeholder logic - requires actual site key in index.html)
   if (typeof grecaptcha !== 'undefined') {
     try {
-      const token = await grecaptcha.execute('R-XXXXXXXXXX', { action: 'generate_meal' });
+      const token = await grecaptcha.execute('6Lf9-EssAAAAAJ6_ETtZ6StCfuEU6VZCHM4EmoZI', { action: 'generate_meal' });
       console.log("reCAPTCHA Token:", token);
       // In a real app, send this token to your server for verification
     } catch (e) {
@@ -580,7 +580,7 @@ function generateRecipesFromScan() {
     // Bot Protection check
     if (typeof grecaptcha !== 'undefined') {
       try {
-        await grecaptcha.execute('R-XXXXXXXXXX', { action: 'scan_meal' });
+        await grecaptcha.execute('6Lf9-EssAAAAAJ6_ETtZ6StCfuEU6VZCHM4EmoZI', { action: 'scan_meal' });
       } catch (e) { }
     }
 

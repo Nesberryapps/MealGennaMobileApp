@@ -14,7 +14,8 @@
     "@capacitor/android": "^5.0.0",
     "@capacitor/core": "^5.0.0",
     "@capacitor/ios": "^5.0.0",
-    "@capacitor/local-notifications": "^5.0.8"
+    "@capacitor/local-notifications": "^5.0.8",
+    "@revenuecat/purchases-capacitor": "^12.0.4"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",

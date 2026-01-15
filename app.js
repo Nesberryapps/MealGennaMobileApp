@@ -1,6 +1,10 @@
 // --- CONFIGURATION ---
 const GEMINI_API_KEY = "PASTE_YOUR_GEMINI_API_KEY_HERE";
 
+// RevenueCat API Keys
+const REVENUECAT_API_KEY_ANDROID = "goog_EarGAXOhvCmNorhPDwVQXRRYfgR";
+const REVENUECAT_API_KEY_IOS = "appl_HgJWZQBHyaAcXNhibMlDiXzBzKa";
+
 // --- STATE MANAGEMENT ---
 let appState = {
   isPremium: false,
@@ -10,6 +14,7 @@ let appState = {
   generatedRecipes: [],
   planner: [], // Current 7-day plan
   lastPlannerGeneration: null, // Date object
+  plannerGenerationCount: 0, // Track generations in current 7-day period
   scannedItems: [] // List of identified ingredients
 };
 
@@ -63,7 +68,8 @@ async function generateAIRecipes(preferences) {
             3. Macro breakdown (Protein, Carbs, Fats).
             4. 6 detailed ingredients (must include at least some of the scanned items).
             5. 4 clear cooking instructions that EXPLICITLY mention the ingredients used.
-            Return ONLY a valid JSON array of 3 objects with keys: title, time, cal, protein, carbs, fats, ingredients, instructions.`;
+            6. A short string of 3 visual keywords for finding a stock photo (e.g. "pasta, tomato, basil").
+            Return ONLY a valid JSON array of 3 objects with keys: title, time, cal, protein, carbs, fats, ingredients, instructions, image_keywords.`;
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
         method: 'POST',
@@ -88,7 +94,7 @@ async function generateAIRecipes(preferences) {
         nutrition: { protein: m.protein, carbs: m.carbs, fats: m.fats },
         ingredients: m.ingredients,
         instructions: m.instructions,
-        image: `https://loremflickr.com/800/600/food,${m.title.split(' ').pop()},dish/all` // Dynamic matching
+        image: `https://loremflickr.com/800/600/food,${m.image_keywords ? m.image_keywords.replace(/ /g, ',') : 'meal'},plate` // Improved matching
       }));
     } catch (error) {
       console.error("Gemini API Error:", error);
@@ -214,14 +220,14 @@ async function generateFromPreferences() {
     cuisine: document.getElementById('select-cuisine').value
   };
 
-  // Bot Protection (Placeholder logic - requires actual site key in index.html)
+  // Bot Protection
   if (typeof grecaptcha !== 'undefined') {
     try {
-      const token = await grecaptcha.execute('6Lf9-EssAAAAAJ6_ETtZ6StCfuEU6VZCHM4EmoZI', { action: 'generate_meal' });
-      console.log("reCAPTCHA Token:", token);
-      // In a real app, send this token to your server for verification
+      const exec = grecaptcha.enterprise ? grecaptcha.enterprise.execute : grecaptcha.execute;
+      const token = await exec('6Lf9-EssAAAAAJ6_ETtZ6StCfuEU6VZCHM4EmoZI', { action: 'generate_meal' });
+      console.log("reCAPTCHA Token generated");
     } catch (e) {
-      console.warn("reCAPTCHA failed, proceeding anyway for demo.");
+      console.warn("reCAPTCHA silent fail:", e);
     }
   }
 
@@ -291,54 +297,106 @@ function openRecipeModal(recipe) {
         </div>
     `;
 
-  document.getElementById('modal-ingredients').innerHTML = recipe.ingredients.map(i => `<li>${i}</li>`).join('');
+  // Render Ingredients with Checkboxes
+  const ingredientsHtml = recipe.ingredients.map((ing, idx) => `
+    <li style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+      <input type="checkbox" id="ing-${idx}" value="${ing.replace(/"/g, '&quot;')}" class="ingredient-checkbox" style="width: 18px; height: 18px; accent-color: var(--primary);">
+      <label for="ing-${idx}" style="font-size: 14px; color: var(--text-primary); cursor: pointer; flex: 1;">${ing}</label>
+    </li>
+  `).join('');
+
+  // Shopping Buttons
+  const shoppingHtml = `
+    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1);">
+      <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 10px;">Select missing ingredients & shop:</p>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <button onclick="shopIngredients('walmart')" style="flex: 1; min-width: 80px; padding: 8px; background: #0071dc; border: none; border-radius: 8px; color: white; font-size: 11px; font-weight: 600;">
+          <i class="fas fa-shopping-cart"></i> Walmart
+        </button>
+        <button onclick="shopIngredients('amazon')" style="flex: 1; min-width: 80px; padding: 8px; background: #ff9900; border: none; border-radius: 8px; color: white; font-size: 11px; font-weight: 600;">
+          <i class="fab fa-amazon"></i> Amazon
+        </button>
+        <button onclick="shopIngredients('instacart')" style="flex: 1; min-width: 80px; padding: 8px; background: #02a11b; border: none; border-radius: 8px; color: white; font-size: 11px; font-weight: 600;">
+          <i class="fas fa-carrot"></i> Instacart
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('modal-ingredients').innerHTML = ingredientsHtml + shoppingHtml;
   document.getElementById('modal-instructions').innerHTML = recipe.instructions.map((step, i) => `<li>${step}</li>`).join('');
 
   document.getElementById('recipe-modal').style.display = 'flex';
 }
 
-function closeRecipeModal() {
-  document.getElementById('recipe-modal').style.display = 'none';
-}
-
-function shareRecipe() {
-  const r = appState.currentRecipe;
-  const shareText = `Check out this ${r.title} on MealGenna!\n\nIngredients: ${r.ingredients.slice(0, 3).join(', ')}...`;
-
-  if (navigator.share) {
-    navigator.share({
-      title: 'MealGenna Recipe',
-      text: shareText,
-      url: window.location.href
-    }).then(() => showToast("Shared successfully!"))
-      .catch((err) => console.log('Error sharing', err));
-  } else {
-    // Fallback: Copy to clipboard
-    navigator.clipboard.writeText(shareText + "\n" + window.location.href);
-    showToast("Link copied to clipboard!");
+function shopIngredients(store) {
+  const checkboxes = document.querySelectorAll('.ingredient-checkbox:checked');
+  if (checkboxes.length === 0) {
+    showToast("Please select at least one ingredient to shop.");
+    return;
   }
-}
 
-function downloadRecipePrompt() {
-  if (appState.isPremium) {
-    performDownload();
-  } else {
-    watchAd(() => {
+  const items = Array.from(checkboxes).map(cb => cb.value).join(' ');
+  const query = encodeURIComponent(items);
+  let url = '';
+
+  switch (store) {
+    case 'walmart':
+      url = `https://www.walmart.com/search?q=${query}`;
+      break;
+    case 'amazon':
+      url = `https://www.amazon.com/s?k=${query}&i=amazonfresh`;
+      break;
+    case 'instacart':
+      url = `https://www.instacart.com/store/search/${query}`;
+      break;
+  }
+
+  window.open(url, '_blank');
+
+
+  function closeRecipeModal() {
+    document.getElementById('recipe-modal').style.display = 'none';
+  }
+
+  function shareRecipe() {
+    const r = appState.currentRecipe;
+    const shareText = `Check out this ${r.title} on MealGenna!\n\nIngredients: ${r.ingredients.slice(0, 3).join(', ')}...`;
+
+    if (navigator.share) {
+      navigator.share({
+        title: 'MealGenna Recipe',
+        text: shareText,
+        url: window.location.href
+      }).then(() => showToast("Shared successfully!"))
+        .catch((err) => console.log('Error sharing', err));
+    } else {
+      // Fallback: Copy to clipboard
+      navigator.clipboard.writeText(shareText + "\n" + window.location.href);
+      showToast("Link copied to clipboard!");
+    }
+  }
+
+  function downloadRecipePrompt() {
+    if (appState.isPremium) {
       performDownload();
-    });
+    } else {
+      watchAd(() => {
+        performDownload();
+      });
+    }
   }
-}
 
-function performDownload() {
-  const r = appState.currentRecipe;
-  const nutritionText = r.nutrition ? `
+  function performDownload() {
+    const r = appState.currentRecipe;
+    const nutritionText = r.nutrition ? `
 NUTRITION FACTS:
 - Protein: ${r.nutrition.protein || 'N/A'}
 - Carbs: ${r.nutrition.carbs || 'N/A'}
 - Fats: ${r.nutrition.fats || 'N/A'}
 ` : '';
 
-  const content = `
+    const content = `
 MEALGENNA RECIPE REPORT
 =======================
 Recipe: ${r.title}
@@ -356,122 +414,147 @@ ${r.instructions.map((step, i) => `${i + 1}. ${step}`).join('\n')}
 Generated by MealGenna AI.
     `;
 
-  const blob = new Blob([content], { type: 'text/plain' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `MealGenna_${r.title.replace(/\s+/g, '_')}.txt`;
-  document.body.appendChild(a); // Required for some browsers
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  showToast("Download started!");
-}
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `MealGenna_${r.title.replace(/\s+/g, '_')}.txt`;
+    document.body.appendChild(a); // Required for some browsers
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("Download started!");
+  }
 
-// 8. Ad Overlay System
-function watchAd(callback) {
-  const overlay = document.getElementById('ad-overlay');
-  const timerEl = document.getElementById('ad-timer');
-  const closeBtn = document.getElementById('ad-close-btn');
+  // 8. Ad Overlay System
+  function watchAd(callback) {
+    const overlay = document.getElementById('ad-overlay');
+    const timerEl = document.getElementById('ad-timer');
+    const closeBtn = document.getElementById('ad-close-btn');
 
-  overlay.style.display = 'flex';
-  closeBtn.style.display = 'none';
+    overlay.style.display = 'flex';
+    closeBtn.style.display = 'none';
 
-  let timeLeft = 5;
-  timerEl.innerText = timeLeft;
-
-  const interval = setInterval(() => {
-    timeLeft--;
+    let timeLeft = 5;
     timerEl.innerText = timeLeft;
-    if (timeLeft <= 0) {
-      clearInterval(interval);
-      closeBtn.style.display = 'block';
-      timerEl.innerText = 'Reward Ready';
+
+    const interval = setInterval(() => {
+      timeLeft--;
+      timerEl.innerText = timeLeft;
+      if (timeLeft <= 0) {
+        clearInterval(interval);
+        closeBtn.style.display = 'block';
+        timerEl.innerText = 'Reward Ready';
+      }
+    }, 1000);
+
+    window.closeAd = () => {
+      overlay.style.display = 'none';
+      appState.adsWatched++;
+      if (callback) callback();
+    };
+  }
+
+  // 9. Planner Logic (Ad-Gated for Free, Limited for Premium)
+  async function unlockPlanner() {
+    const now = new Date();
+
+    // Check if we need to reset the 7-day counter
+    if (appState.lastPlannerGeneration) {
+      const diff = now - appState.lastPlannerGeneration;
+      const daysSinceFirst = diff / (1000 * 60 * 60 * 24);
+
+      // Reset counter after 7 days
+      if (daysSinceFirst >= 7) {
+        appState.plannerGenerationCount = 0;
+        appState.lastPlannerGeneration = null;
+      }
     }
-  }, 1000);
 
-  window.closeAd = () => {
-    overlay.style.display = 'none';
-    appState.adsWatched++;
-    if (callback) callback();
-  };
-}
+    if (appState.isPremium) {
+      // Premium users: 2 plans every 7 days
+      if (appState.plannerGenerationCount >= 2) {
+        const diff = now - appState.lastPlannerGeneration;
+        const daysRemaining = Math.ceil(7 - (diff / (1000 * 60 * 60 * 24)));
+        showToast(`You've used your 2 meal plans. Next reset in ${daysRemaining} days.`);
+        return;
+      }
+      generateFullPlan();
+    } else {
+      // Free users: Watch 2 ads, once per 7 days
+      if (appState.lastPlannerGeneration) {
+        const diff = now - appState.lastPlannerGeneration;
+        const days = diff / (1000 * 60 * 60 * 24);
+        if (days < 7) {
+          showToast(`You can generate a new plan in ${Math.ceil(7 - days)} days.`);
+          return;
+        }
+      }
 
-// 9. Planner Logic (Ad-Gated 2x)
-async function unlockPlanner() {
-  // Check 7-day rule (Optional for prototype but good for logic)
-  const now = new Date();
-  if (appState.lastPlannerGeneration) {
-    const diff = now - appState.lastPlannerGeneration;
-    const days = diff / (1000 * 60 * 60 * 24);
-    if (days < 7 && !appState.isPremium) {
-      showToast(`You can generate a new plan in ${Math.ceil(7 - days)} days.`);
-      return;
+      showToast("Watch 2 ads to unlock your 7-day plan!");
+      watchAd(() => {
+        showToast("1/2 Ads watched. Generating final ad...");
+        setTimeout(() => {
+          watchAd(() => {
+            generateFullPlan();
+          });
+        }, 1000);
+      });
     }
   }
 
-  if (appState.isPremium) {
-    generateFullPlan();
-  } else {
-    showToast("Watch 2 ads to unlock your 7-day plan!");
-    watchAd(() => {
-      showToast("1/2 Ads watched. Generating final ad...");
-      setTimeout(() => {
-        watchAd(() => {
-          generateFullPlan();
-        });
-      }, 1000);
-    });
+  function generateFullPlan() {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const meals = [
+      { title: "Quinoa Power Bowl", cal: "420 kcal", time: "20 min", nutrition: { protein: "15g", carbs: "65g", fats: "12g" }, ingredients: ["Quinoa", "Kale", "Chickpeas", "Tahini"], instructions: ["Cook quinoa.", "Massage kale.", "Mix all items."] },
+      { title: "Zesty Lemon Chicken", cal: "550 kcal", time: "35 min", nutrition: { protein: "45g", carbs: "10g", fats: "22g" }, ingredients: ["Chicken breast", "Lemon", "Garlic", "Asparagus"], instructions: ["Marinate chicken.", "Roast with asparagus."] },
+      { title: "Garden Fresh Pasta", cal: "480 kcal", time: "15 min", nutrition: { protein: "12g", carbs: "75g", fats: "14g" }, ingredients: ["Penne", "Cherry tomatoes", "Basil", "Zucchini"], instructions: ["Boil pasta.", "Sauté veggies.", "Toss together."] },
+      { title: "Spicy Shrimp Tacos", cal: "380 kcal", time: "25 min", nutrition: { protein: "28g", carbs: "35g", fats: "18g" }, ingredients: ["Shrimp", "Corn tortillas", "Cabbage", "Lime"], instructions: ["Season shrimp.", "Sear in pan.", "Assemble tacos."] },
+      { title: "Hearty Beef Stew", cal: "720 kcal", time: "60 min", nutrition: { protein: "52g", carbs: "45g", fats: "32g" }, ingredients: ["Beef pieces", "Carrots", "Potatoes", "Stock"], instructions: ["Brown beef.", "Add veggies and liquid.", "Simmer until tender."] },
+      { title: "Avocado Fusion Salad", cal: "310 kcal", time: "10 min", nutrition: { protein: "6g", carbs: "15g", fats: "24g" }, ingredients: ["Avocado", "Spring mix", "Sesame seeds", "Miso"], instructions: ["Slice avocado.", "Toss with greens and miso dressing."] },
+      { title: "Grilled Salmon & Asparagus", cal: "450 kcal", time: "25 min", nutrition: { protein: "35g", carbs: "8g", fats: "28g" }, ingredients: ["Salmon", "Asparagus", "Olive oil", "Lemon"], instructions: ["Brust salmon with oil.", "Grill with asparagus for 12 mins."] }
+    ];
+
+    appState.planner = days.map((day, i) => ({
+      day: day,
+      title: meals[i].title,
+      cal: meals[i].cal,
+      time: meals[i].time,
+      nutrition: meals[i].nutrition,
+      ingredients: meals[i].ingredients,
+      instructions: meals[i].instructions,
+      badge: "Planner",
+      locked: false
+    }));
+
+    // Track generation for premium limits
+    appState.plannerGenerationCount++;
+    if (!appState.lastPlannerGeneration) {
+      appState.lastPlannerGeneration = new Date();
+    }
+
+    renderPlanner();
+    showToast("7-Day Meal Plan Unlocked!");
   }
-}
 
-function generateFullPlan() {
-  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const meals = [
-    { title: "Quinoa Power Bowl", cal: "420 kcal", time: "20 min", nutrition: { protein: "15g", carbs: "65g", fats: "12g" }, ingredients: ["Quinoa", "Kale", "Chickpeas", "Tahini"], instructions: ["Cook quinoa.", "Massage kale.", "Mix all items."] },
-    { title: "Zesty Lemon Chicken", cal: "550 kcal", time: "35 min", nutrition: { protein: "45g", carbs: "10g", fats: "22g" }, ingredients: ["Chicken breast", "Lemon", "Garlic", "Asparagus"], instructions: ["Marinate chicken.", "Roast with asparagus."] },
-    { title: "Garden Fresh Pasta", cal: "480 kcal", time: "15 min", nutrition: { protein: "12g", carbs: "75g", fats: "14g" }, ingredients: ["Penne", "Cherry tomatoes", "Basil", "Zucchini"], instructions: ["Boil pasta.", "Sauté veggies.", "Toss together."] },
-    { title: "Spicy Shrimp Tacos", cal: "380 kcal", time: "25 min", nutrition: { protein: "28g", carbs: "35g", fats: "18g" }, ingredients: ["Shrimp", "Corn tortillas", "Cabbage", "Lime"], instructions: ["Season shrimp.", "Sear in pan.", "Assemble tacos."] },
-    { title: "Hearty Beef Stew", cal: "720 kcal", time: "60 min", nutrition: { protein: "52g", carbs: "45g", fats: "32g" }, ingredients: ["Beef pieces", "Carrots", "Potatoes", "Stock"], instructions: ["Brown beef.", "Add veggies and liquid.", "Simmer until tender."] },
-    { title: "Avocado Fusion Salad", cal: "310 kcal", time: "10 min", nutrition: { protein: "6g", carbs: "15g", fats: "24g" }, ingredients: ["Avocado", "Spring mix", "Sesame seeds", "Miso"], instructions: ["Slice avocado.", "Toss with greens and miso dressing."] },
-    { title: "Grilled Salmon & Asparagus", cal: "450 kcal", time: "25 min", nutrition: { protein: "35g", carbs: "8g", fats: "28g" }, ingredients: ["Salmon", "Asparagus", "Olive oil", "Lemon"], instructions: ["Brust salmon with oil.", "Grill with asparagus for 12 mins."] }
-  ];
-
-  appState.planner = days.map((day, i) => ({
-    day: day,
-    title: meals[i].title,
-    cal: meals[i].cal,
-    time: meals[i].time,
-    nutrition: meals[i].nutrition,
-    ingredients: meals[i].ingredients,
-    instructions: meals[i].instructions,
-    badge: "Planner",
-    locked: false
-  }));
-
-  appState.lastPlannerGeneration = new Date();
-  renderPlanner();
-  showToast("7-Day Meal Plan Unlocked!");
-}
-
-function togglePlannerDetails(index) {
-  const details = document.getElementById(`details-${index}`);
-  const arrow = document.getElementById(`arrow-${index}`);
-  if (details.style.display === 'block') {
-    details.style.display = 'none';
-    arrow.style.transform = 'rotate(0deg)';
-  } else {
-    details.style.display = 'block';
-    arrow.style.transform = 'rotate(180deg)';
+  function togglePlannerDetails(index) {
+    const details = document.getElementById(`details-${index}`);
+    const arrow = document.getElementById(`arrow-${index}`);
+    if (details.style.display === 'block') {
+      details.style.display = 'none';
+      arrow.style.transform = 'rotate(0deg)';
+    } else {
+      details.style.display = 'block';
+      arrow.style.transform = 'rotate(180deg)';
+    }
   }
-}
 
-function renderPlanner() {
-  const list = document.getElementById('planner-days-list');
-  if (!list) return;
+  function renderPlanner() {
+    const list = document.getElementById('planner-days-list');
+    if (!list) return;
 
-  if (appState.planner.length === 0) {
-    list.innerHTML = `
+    if (appState.planner.length === 0) {
+      list.innerHTML = `
             <div class="day-card locked">
                 <div class="day-header">
                     <span class="day-name">Mon-Sun</span>
@@ -479,10 +562,10 @@ function renderPlanner() {
                 </div>
             </div>
         `;
-    return;
-  }
+      return;
+    }
 
-  list.innerHTML = appState.planner.map((day, i) => `
+    list.innerHTML = appState.planner.map((day, i) => `
         <div class="day-card active">
             <div class="day-header" onclick="togglePlannerDetails(${i})">
                 <span class="day-name">${day.day}</span>
@@ -505,244 +588,352 @@ function renderPlanner() {
             </div>
         </div>
     `).join('');
-}
-
-// Global Wrappers for Planner Actions
-function sharePlannerRecipe(index) {
-  appState.currentRecipe = appState.planner[index];
-  shareRecipe();
-}
-
-function downloadPlannerRecipe(index) {
-  appState.currentRecipe = appState.planner[index];
-  downloadRecipePrompt();
-}
-
-// 10. Scanner Logic (REAL CAMERA & AI VISION)
-let mediaStream = null;
-
-async function startCamera() {
-  try {
-    const video = document.getElementById('camera-feed');
-    mediaStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment" },
-      audio: false
-    });
-    video.srcObject = mediaStream;
-
-    document.getElementById('btn-start-camera').style.display = 'none';
-    document.getElementById('btn-capture').style.display = 'block';
-    showToast("Camera active. Point at your ingredients.");
-  } catch (err) {
-    console.error("Camera Error:", err);
-    showToast("Camera access denied. Using simulated view.");
   }
-}
 
-async function identifyIngredients() {
-  showToast("Analyzing items...");
+  // Global Wrappers for Planner Actions
+  function sharePlannerRecipe(index) {
+    appState.currentRecipe = appState.planner[index];
+    shareRecipe();
+  }
 
-  // Simulate Vision AI Processing
-  // In a real app, you would send a frame to Gemini Vision or a Vision API here
-  setTimeout(() => {
-    const library = ["Tomato", "Bread", "Rice", "Chicken", "Fish", "Avocado", "Garlic", "Onion", "Spinach"];
-    // Pick 3-5 random items to show detection
-    const detected = [];
-    const count = 3 + Math.floor(Math.random() * 3);
-    for (let i = 0; i < count; i++) {
-      const item = library[Math.floor(Math.random() * library.length)];
-      if (!detected.includes(item)) detected.push(item);
+  function downloadPlannerRecipe(index) {
+    appState.currentRecipe = appState.planner[index];
+    downloadRecipePrompt();
+  }
+
+  // 10. Scanner Logic (REAL CAMERA & AI VISION)
+  let mediaStream = null;
+
+  async function startCamera() {
+    try {
+      const video = document.getElementById('camera-feed');
+      mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+        audio: false
+      });
+      video.srcObject = mediaStream;
+
+      document.getElementById('btn-start-camera').style.display = 'none';
+      document.getElementById('btn-capture').style.display = 'block';
+      showToast("Camera active. Point at your ingredients.");
+    } catch (err) {
+      console.error("Camera Error:", err);
+      showToast("Camera access denied. Using simulated view.");
     }
+  }
 
-    appState.scannedItems = detected;
-    renderScannedBadges();
+  async function identifyIngredients() {
+    showToast("Analyzing items...");
 
-    document.getElementById('btn-generate-scan').style.display = 'block';
-    document.getElementById('scan-ad-hint').style.display = 'block';
-    showToast(`${detected.length} items identified!`);
-  }, 2000);
-}
+    // Simulate Vision AI Processing
+    // In a real app, you would send a frame to Gemini Vision or a Vision API here
+    setTimeout(() => {
+      const library = ["Tomato", "Bread", "Rice", "Chicken", "Fish", "Avocado", "Garlic", "Onion", "Spinach"];
+      // Pick 3-5 random items to show detection
+      const detected = [];
+      const count = 3 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < count; i++) {
+        const item = library[Math.floor(Math.random() * library.length)];
+        if (!detected.includes(item)) detected.push(item);
+      }
 
-function renderScannedBadges() {
-  const list = document.getElementById('scanned-ingredients-list');
-  list.innerHTML = appState.scannedItems.map(item => `
+      appState.scannedItems = detected;
+      renderScannedBadges();
+
+      document.getElementById('btn-generate-scan').style.display = 'block';
+      document.getElementById('scan-ad-hint').style.display = 'block';
+      showToast(`${detected.length} items identified!`);
+    }, 2000);
+  }
+
+  function renderScannedBadges() {
+    const list = document.getElementById('scanned-ingredients-list');
+    list.innerHTML = appState.scannedItems.map(item => `
         <span class="badge" style="background: var(--primary); color: white;">${item}</span>
     `).join('');
-}
-
-function generateRecipesFromScan() {
-  if (appState.scannedItems.length === 0) {
-    showToast("Please identify some items first!");
-    return;
   }
 
-  const processResults = async () => {
-    // Bot Protection check
-    if (typeof grecaptcha !== 'undefined') {
-      try {
-        await grecaptcha.execute('6Lf9-EssAAAAAJ6_ETtZ6StCfuEU6VZCHM4EmoZI', { action: 'scan_meal' });
-      } catch (e) { }
+  function generateRecipesFromScan() {
+    if (appState.scannedItems.length === 0) {
+      showToast("Please identify some items first!");
+      return;
     }
 
-    const preferences = {
-      time: "Lunch",
-      diet: "None",
-      cuisine: "Any",
-      scannedIngredients: appState.scannedItems
+    const processResults = async () => {
+      // Bot Protection check
+      if (typeof grecaptcha !== 'undefined') {
+        try {
+          const exec = grecaptcha.enterprise ? grecaptcha.enterprise.execute : grecaptcha.execute;
+          await exec('6Lf9-EssAAAAAJ6_ETtZ6StCfuEU6VZCHM4EmoZI', { action: 'scan_meal' });
+        } catch (e) { }
+      }
+
+      const preferences = {
+        time: "Lunch",
+        diet: "None",
+        cuisine: "Any",
+        scannedIngredients: appState.scannedItems
+      };
+      const results = await generateAIRecipes(preferences);
+      renderRecipes(results);
+      showScreen('screen-home', document.querySelector('.nav-item[onclick*="screen-home"]'));
+
+      // Stop camera stream to save battery
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+        document.getElementById('btn-start-camera').style.display = 'block';
+        document.getElementById('btn-capture').style.display = 'none';
+      }
     };
-    const results = await generateAIRecipes(preferences);
-    renderRecipes(results);
-    showScreen('screen-home', document.querySelector('.nav-item[onclick*="screen-home"]'));
 
-    // Stop camera stream to save battery
-    if (mediaStream) {
-      mediaStream.getTracks().forEach(track => track.stop());
-      document.getElementById('btn-start-camera').style.display = 'block';
-      document.getElementById('btn-capture').style.display = 'none';
-    }
-  };
-
-  if (appState.isPremium) {
-    processResults();
-  } else {
-    watchAd(processResults);
-  }
-}
-
-// 11. Subscription System (IAP Model)
-async function purchasePremium() {
-  showToast("Connecting to Store...");
-
-  // Simulating IAP checkout process (In real app, call Capacitor/Cordova IAP plugin here)
-  setTimeout(() => {
-    appState.isPremium = true;
-    updatePremiumUI();
-    localStorage.setItem('mealgenna_plus', 'true');
-    showToast("Welcome to MealGenna Plus! All ads removed.");
-  }, 2000);
-}
-
-function cancelSubscription() {
-  // Compliance requirement: Provide an obvious way to cancel
-  const confirmed = confirm("Are you sure you want to cancel your MealGenna Plus subscription? Premium features will be disabled.");
-  if (confirmed) {
-    appState.isPremium = false;
-    localStorage.removeItem('mealgenna_plus');
-    updatePremiumUI();
-    showToast("Premium subscription cancelled.");
-    showScreen('screen-home', document.querySelector('.nav-item[onclick*="screen-home"]'));
-  }
-}
-
-function restorePurchases() {
-  showToast("Restoring purchases...");
-  setTimeout(() => {
-    const hasPlus = localStorage.getItem('mealgenna_plus') === 'true';
-    if (hasPlus) {
-      appState.isPremium = true;
-      updatePremiumUI();
-      showToast("MealGenna Plus restored!");
+    if (appState.isPremium) {
+      processResults();
     } else {
-      showToast("No active subscription found.");
+      watchAd(processResults);
     }
-  }, 1500);
-}
-
-function updatePremiumUI() {
-  const subBtn = document.getElementById('btn-subscribe');
-  const cancelBtn = document.getElementById('btn-cancel-sub');
-  const homeBanner = document.querySelector('.banner');
-  const allAdHints = document.querySelectorAll('.ad-hint');
-  const scanAdHint = document.getElementById('scan-ad-hint');
-
-  if (appState.isPremium) {
-    if (subBtn) {
-      subBtn.innerHTML = '<i class="fas fa-check-circle"></i> Plus Active';
-      subBtn.style.background = "var(--glass)";
-      subBtn.style.border = "1px solid var(--primary)";
-      subBtn.disabled = true;
-    }
-    if (cancelBtn) cancelBtn.style.display = 'block';
-    if (homeBanner) homeBanner.style.display = 'none';
-    allAdHints.forEach(hint => hint.style.display = 'none');
-    if (scanAdHint) scanAdHint.style.display = 'none';
-  } else {
-    if (subBtn) {
-      subBtn.innerText = 'Subscribe Now';
-      subBtn.style.background = "linear-gradient(135deg, #f59e0b, #ef4444)";
-      subBtn.disabled = false;
-    }
-    if (cancelBtn) cancelBtn.style.display = 'none';
-    if (homeBanner) homeBanner.style.display = 'block';
-    allAdHints.forEach(hint => hint.style.display = 'block');
-  }
-}
-
-function showToast(msg) {
-  const toast = document.getElementById('toast');
-  toast.innerText = msg;
-  toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 3000);
-}
-
-// 12. Initialization
-document.addEventListener('DOMContentLoaded', () => {
-  // Auto-restore premium if exists
-  if (localStorage.getItem('mealgenna_plus') === 'true') {
-    appState.isPremium = true;
   }
 
-  updateGreeting();
-  renderPlanner();
-  updatePremiumUI();
+  // 11. Subscription System (RevenueCat Integration)
+  async function initializeRevenueCat() {
+    try {
+      const { Purchases } = window.Capacitor.Plugins;
+      if (!Purchases) {
+        console.warn("RevenueCat not available, using fallback");
+        return;
+      }
 
-  // Initialize Notifications
-  initNotifications();
+      // Detect platform and configure with appropriate API key
+      const platform = window.Capacitor.getPlatform();
+      const apiKey = platform === 'ios' ? REVENUECAT_API_KEY_IOS : REVENUECAT_API_KEY_ANDROID;
 
-  // Default initial ideas
-  generateAIRecipes({ time: "Dinner", diet: "None", cuisine: "Any" }).then(res => renderRecipes(res));
-});
+      await Purchases.configure({ apiKey });
+      console.log("RevenueCat initialized successfully");
 
-// --- NOTIFICATION SYSTEM ---
-async function initNotifications() {
-  try {
-    const { LocalNotifications } = Capacitor.Plugins;
-    if (!LocalNotifications) return;
-
-    const perm = await LocalNotifications.requestPermissions();
-    if (perm.display === 'granted') {
-      // Clear existing to avoid duplicates
-      await LocalNotifications.cancel({ notifications: [{ id: 1 }, { id: 2 }, { id: 3 }] });
-
-      await LocalNotifications.schedule({
-        notifications: [
-          {
-            title: "Good Morning! ☀️",
-            body: "Time to plan a fresh breakfast. What's on the menu?",
-            id: 1,
-            schedule: { on: { hour: 8, minute: 0 }, every: 'day' },
-            sound: 'beep.wav'
-          },
-          {
-            title: "Lunch Break! 🥗",
-            body: "Hungry? Let's find some delicious lunch ideas.",
-            id: 2,
-            schedule: { on: { hour: 12, minute: 30 }, every: 'day' },
-            sound: 'beep.wav'
-          },
-          {
-            title: "Dinner Planning 🍽️",
-            body: "Ready for dinner? See what MealGenna suggests.",
-            id: 3,
-            schedule: { on: { hour: 18, minute: 0 }, every: 'day' },
-            sound: 'beep.wav'
-          }
-        ]
-      });
-      console.log("Daily notifications scheduled.");
+      // Check current subscription status
+      await checkSubscriptionStatus();
+    } catch (error) {
+      console.error("RevenueCat initialization error:", error);
     }
-  } catch (err) {
-    console.error("Notifications Error:", err);
   }
-}
+
+  async function checkSubscriptionStatus() {
+    try {
+      const { Purchases } = window.Capacitor.Plugins;
+      if (!Purchases) return;
+
+      const { customerInfo } = await Purchases.getCustomerInfo();
+
+      // Check if user has active entitlement (RevenueCat uses "entitlements" to manage access)
+      const isPremium = customerInfo.entitlements.active['premium'] !== undefined;
+
+      if (isPremium !== appState.isPremium) {
+        appState.isPremium = isPremium;
+        updatePremiumUI();
+        if (isPremium) {
+          showToast("MealGenna Plus Active!");
+        }
+      }
+    } catch (error) {
+      console.error("Error checking subscription status:", error);
+    }
+  }
+
+  async function purchasePremium() {
+    try {
+      const { Purchases } = window.Capacitor.Plugins;
+      if (!Purchases) {
+        // Fallback for testing
+        showToast("Store not available. Using demo mode.");
+        appState.isPremium = true;
+        updatePremiumUI();
+        return;
+      }
+
+      showToast("Loading subscription options...");
+
+      // Get available offerings from RevenueCat
+      const { offerings } = await Purchases.getOfferings();
+
+      if (!offerings.current) {
+        showToast("No subscription plans available.");
+        return;
+      }
+
+      // Get the monthly package (you should configure this in RevenueCat dashboard)
+      const monthlyPackage = offerings.current.availablePackages.find(
+        pkg => pkg.identifier === '$rc_monthly' || pkg.packageType === 'MONTHLY'
+      );
+
+      if (!monthlyPackage) {
+        showToast("Monthly plan not found.");
+        return;
+      }
+
+      showToast("Processing purchase...");
+
+      // Make the purchase
+      const { customerInfo } = await Purchases.purchasePackage({ aPackage: monthlyPackage });
+
+      // Check if the purchase was successful
+      if (customerInfo.entitlements.active['premium']) {
+        appState.isPremium = true;
+        updatePremiumUI();
+        showToast("Welcome to MealGenna Plus! 🎉");
+      } else {
+        showToast("Purchase completed but premium not activated. Please contact support.");
+      }
+
+    } catch (error) {
+      console.error("Purchase error:", error);
+
+      if (error.code === 'PURCHASE_CANCELLED') {
+        showToast("Purchase cancelled.");
+      } else {
+        showToast("Purchase failed. Please try again.");
+      }
+    }
+  }
+
+  async function cancelSubscription() {
+    // Note: RevenueCat doesn't handle cancellation directly - users must cancel through their platform
+    const platform = window.Capacitor.getPlatform();
+
+    let message = "To cancel your subscription:\n\n";
+
+    if (platform === 'ios') {
+      message += "1. Open Settings on your iPhone\n";
+      message += "2. Tap your name at the top\n";
+      message += "3. Tap 'Subscriptions'\n";
+      message += "4. Select MealGenna Plus\n";
+      message += "5. Tap 'Cancel Subscription'";
+    } else {
+      message += "1. Open Google Play Store\n";
+      message += "2. Tap Menu → Subscriptions\n";
+      message += "3. Select MealGenna Plus\n";
+      message += "4. Tap 'Cancel subscription'";
+    }
+
+    alert(message);
+  }
+
+  async function restorePurchases() {
+    try {
+      const { Purchases } = window.Capacitor.Plugins;
+      if (!Purchases) {
+        showToast("Store not available.");
+        return;
+      }
+
+      showToast("Restoring purchases...");
+
+      const { customerInfo } = await Purchases.restorePurchases();
+
+      if (customerInfo.entitlements.active['premium']) {
+        appState.isPremium = true;
+        updatePremiumUI();
+        showToast("MealGenna Plus restored! 🎉");
+      } else {
+        showToast("No active subscription found.");
+      }
+    } catch (error) {
+      console.error("Restore error:", error);
+      showToast("Failed to restore purchases. Please try again.");
+    }
+  }
+
+  function updatePremiumUI() {
+    const subBtn = document.getElementById('btn-subscribe');
+    const cancelBtn = document.getElementById('btn-cancel-sub');
+    const homeBanner = document.querySelector('.banner');
+    const allAdHints = document.querySelectorAll('.ad-hint');
+    const scanAdHint = document.getElementById('scan-ad-hint');
+
+    if (appState.isPremium) {
+      if (subBtn) {
+        subBtn.innerHTML = '<i class="fas fa-check-circle"></i> Plus Active';
+        subBtn.style.background = "var(--glass)";
+        subBtn.style.border = "1px solid var(--primary)";
+        subBtn.disabled = true;
+      }
+      if (cancelBtn) cancelBtn.style.display = 'block';
+      if (homeBanner) homeBanner.style.display = 'none';
+      allAdHints.forEach(hint => hint.style.display = 'none');
+      if (scanAdHint) scanAdHint.style.display = 'none';
+    } else {
+      if (subBtn) {
+        subBtn.innerText = 'Subscribe Now';
+        subBtn.style.background = "linear-gradient(135deg, #f59e0b, #ef4444)";
+        subBtn.disabled = false;
+      }
+      if (cancelBtn) cancelBtn.style.display = 'none';
+      if (homeBanner) homeBanner.style.display = 'block';
+      allAdHints.forEach(hint => hint.style.display = 'block');
+    }
+  }
+
+  function showToast(msg) {
+    const toast = document.getElementById('toast');
+    toast.innerText = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 3000);
+  }
+
+  // 12. Initialization
+  document.addEventListener('DOMContentLoaded', () => {
+    updateGreeting();
+    renderPlanner();
+    updatePremiumUI();
+
+    // Initialize RevenueCat
+    initializeRevenueCat();
+
+    // Initialize Notifications
+    initNotifications();
+
+    // Default initial ideas
+    generateAIRecipes({ time: "Dinner", diet: "None", cuisine: "Any" }).then(res => renderRecipes(res));
+  });
+
+  // --- NOTIFICATION SYSTEM ---
+  async function initNotifications() {
+    try {
+      const { LocalNotifications } = Capacitor.Plugins;
+      if (!LocalNotifications) return;
+
+      const perm = await LocalNotifications.requestPermissions();
+      if (perm.display === 'granted') {
+        // Clear existing to avoid duplicates
+        await LocalNotifications.cancel({ notifications: [{ id: 1 }, { id: 2 }, { id: 3 }] });
+
+        await LocalNotifications.schedule({
+          notifications: [
+            {
+              title: "Good Morning! ☀️",
+              body: "Time to plan a fresh breakfast. What's on the menu?",
+              id: 1,
+              schedule: { on: { hour: 8, minute: 0 }, every: 'day' },
+              sound: 'beep.wav'
+            },
+            {
+              title: "Lunch Break! 🥗",
+              body: "Hungry? Let's find some delicious lunch ideas.",
+              id: 2,
+              schedule: { on: { hour: 12, minute: 30 }, every: 'day' },
+              sound: 'beep.wav'
+            },
+            {
+              title: "Dinner Planning 🍽️",
+              body: "Ready for dinner? See what MealGenna suggests.",
+              id: 3,
+              schedule: { on: { hour: 18, minute: 0 }, every: 'day' },
+              sound: 'beep.wav'
+            }
+          ]
+        });
+        console.log("Daily notifications scheduled.");
+      }
+    } catch (err) {
+      console.error("Notifications Error:", err);
+    }
+  }
 

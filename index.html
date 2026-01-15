@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>MealGenna | AI Meal Planning</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <div id="app">
+        <!-- Background Elements -->
+        <div class="bg-blob blob-1"></div>
+        <div class="bg-blob blob-2"></div>
+
+        <!-- Home Screen -->
+        <section id="screen-home" class="screen active">
+            <h1 id="dynamic-greeting">What's for dinner?</h1>
+            <p class="subtitle">AI-powered suggestions tailored for you</p>
+
+            <!-- Preference Selection -->
+            <div class="preferences-section">
+                <div class="pref-row" style="display: flex; gap: 12px; margin-bottom: 12px;">
+                    <div class="pref-field" style="flex: 1;">
+                        <label
+                            style="font-size: 11px; color: var(--text-secondary); display: block; margin-bottom: 4px;">Meal
+                            Time</label>
+                        <select id="select-time"
+                            style="width: 100%; padding: 12px; border-radius: 12px; background: #1e293b; border: 1px solid var(--glass-border); color: white;">
+                            <option value="Breakfast">Breakfast</option>
+                            <option value="Lunch">Lunch</option>
+                            <option value="Dinner" selected>Dinner</option>
+                            <option value="Snack">Snack</option>
+                        </select>
+                    </div>
+                    <div class="pref-field" style="flex: 1;">
+                        <label
+                            style="font-size: 11px; color: var(--text-secondary); display: block; margin-bottom: 4px;">Dietary</label>
+                        <select id="select-diet"
+                            style="width: 100%; padding: 12px; border-radius: 12px; background: #1e293b; border: 1px solid var(--glass-border); color: white;">
+                            <option value="None" selected>None</option>
+                            <option value="Vegetarian">Vegetarian</option>
+                            <option value="Vegan">Vegan</option>
+                            <option value="Keto">Keto</option>
+                            <option value="Gluten-Free">Gluten-Free</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="pref-field" style="margin-bottom: 20px;">
+                    <label
+                        style="font-size: 11px; color: var(--text-secondary); display: block; margin-bottom: 4px;">Cuisine
+                        Style</label>
+                    <select id="select-cuisine"
+                        style="width: 100%; padding: 12px; border-radius: 12px; background: #1e293b; border: 1px solid var(--glass-border); color: white;">
+                        <option value="Any" selected>Any Style</option>
+                        <option value="Italian">Italian</option>
+                        <option value="Asian Fusion">Asian Fusion</option>
+                        <option value="Mexican">Mexican</option>
+                        <option value="Mediterranean">Mediterranean</option>
+                        <option value="Caribbean">Caribbean</option>
+                        <option value="French-Japanese Fusion">French-Japanese Fusion</option>
+                    </select>
+                </div>
+
+                <button class="btn-primary" onclick="generateFromPreferences()">
+                    <i class="fas fa-magic"></i> Generate My Ideas
+                </button>
+                <p class="ad-hint"><i class="fas fa-play-circle"></i> Watch 1 ad to generate</p>
+            </div>
+
+            <div class="banner">
+                <div class="banner-content">
+                    <h3>Premium Unlocked</h3>
+                    <p>Get unlimited meal plans & no ads.</p>
+                    <button class="banner-btn" onclick="showScreen('screen-premium')">Upgrade Now</button>
+                </div>
+            </div>
+
+            <div class="section-title">
+                <h2>Meal Ideas</h2>
+            </div>
+
+            <div id="quick-ideas-list">
+                <!-- Injected via app.js -->
+            </div>
+        </section>
+
+        <!-- Scanner Screen -->
+        <section id="screen-scanner" class="screen">
+            <h1>AI Vision Scanner</h1>
+            <p class="subtitle">Identify your ingredients instantly</p>
+
+            <div class="scanner-viewport">
+                <video id="camera-feed" autoplay playsinline
+                    style="width: 100%; height: 100%; object-fit: cover; border-radius: 20px;"></video>
+                <div class="scanner-frame">
+                    <div class="scanner-line"></div>
+                </div>
+                <!-- Dynamic ingredients detected -->
+                <div class="detected-badges" id="scanned-ingredients-list">
+                    <span class="badge" style="background: rgba(255,255,255,0.2);">Waiting for items...</span>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <button class="btn-primary" onclick="startCamera()" id="btn-start-camera"
+                    style="flex: 1; background: #334155;">
+                    <i class="fas fa-camera"></i> Start Camera
+                </button>
+                <button class="btn-primary" onclick="identifyIngredients()" id="btn-capture"
+                    style="flex: 1; display: none;">
+                    <i class="fas fa-crosshairs"></i> Identify Items
+                </button>
+            </div>
+
+            <button class="btn-primary" onclick="generateRecipesFromScan()" id="btn-generate-scan"
+                style="display: none; background: var(--primary);">
+                <i class="fas fa-magic"></i> Generate Ideas with Scanned Items
+            </button>
+            <p id="scan-ad-hint" class="ad-hint" style="display: none;"><i class="fas fa-play-circle"></i> Watch 1 ad to
+                unlock recipes</p>
+        </section>
+
+        <!-- Planner Screen -->
+        <section id="screen-planner" class="screen">
+            <h1>Weekly Planner</h1>
+            <p class="subtitle">Your 7-day culinary journey</p>
+
+            <div class="planner-days" id="planner-days-list">
+                <!-- Days will be rendered here -->
+            </div>
+
+            <button class="btn-primary" onclick="unlockPlanner()">
+                <i class="fas fa-calendar-check"></i> Generate Full Plan
+            </button>
+            <p class="ad-hint"><i class="fas fa-play-circle"></i> Watch 2 ads to unlock all days</p>
+        </section>
+
+        <!-- Premium/IAP Screen -->
+        <section id="screen-premium" class="screen">
+            <div class="premium-header">
+                <div class="premium-icon"><i class="fas fa-crown"></i></div>
+                <h1>MealGenna Plus</h1>
+                <p>Elevate your cooking experience</p>
+            </div>
+
+            <div class="perks-list">
+                <div class="perk-item">
+                    <i class="fas fa-check-circle"></i>
+                    <div>
+                        <h4>Ad-Free Experience</h4>
+                        <p>No more interruptions during meal planning.</p>
+                    </div>
+                </div>
+                <div class="perk-item">
+                    <i class="fas fa-check-circle"></i>
+                    <div>
+                        <h4>Unlimited Meal Plans</h4>
+                        <p>Plan your whole year with high-protein options.</p>
+                    </div>
+                </div>
+                <div class="perk-item">
+                    <i class="fas fa-check-circle"></i>
+                    <div>
+                        <h4>Advanced AI Scanning</h4>
+                        <p>Recognize complex spices and rare ingredients.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="price-card">
+                <span class="price-tag">$5.99</span>
+                <span class="price-period">/ month</span>
+                <p>Cancel anytime. Start 7-day free trial.</p>
+            </div>
+
+            <button id="btn-subscribe" class="btn-primary" onclick="purchasePremium()"
+                style="background: linear-gradient(135deg, #f59e0b, #ef4444); box-shadow: 0 10px 20px rgba(239, 68, 68, 0.4); margin-bottom: 12px;">
+                Subscribe Now
+            </button>
+
+            <button id="btn-cancel-sub" class="btn-primary" onclick="cancelSubscription()"
+                style="background: transparent; border: 1px solid rgba(255,255,255,0.2); display: none;">
+                Cancel Subscription
+            </button>
+
+            <p id="restore-hint"
+                style="font-size: 11px; text-align: center; color: var(--text-secondary); margin-top: 20px; text-decoration: underline; cursor: pointer;"
+                onclick="restorePurchases()">
+                Restore Purchases
+            </p>
+
+            <div class="legal-links"
+                style="margin-top: 30px; border-top: 1px solid var(--glass-border); padding-top: 20px;">
+                <div class="legal-item" onclick="showScreen('screen-about')"
+                    style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer;">
+                    <span style="font-size: 14px; color: var(--text-secondary);">About Us</span>
+                    <i class="fas fa-chevron-right" style="font-size: 12px; opacity: 0.5;"></i>
+                </div>
+                <div class="legal-item" onclick="showScreen('screen-contact')"
+                    style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer;">
+                    <span style="font-size: 14px; color: var(--text-secondary);">Contact Us</span>
+                    <i class="fas fa-chevron-right" style="font-size: 12px; opacity: 0.5;"></i>
+                </div>
+                <div class="legal-item" onclick="showScreen('screen-terms')"
+                    style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer;">
+                    <span style="font-size: 14px; color: var(--text-secondary);">Terms & Conditions</span>
+                    <i class="fas fa-chevron-right" style="font-size: 12px; opacity: 0.5;"></i>
+                </div>
+                <div class="legal-item" onclick="showScreen('screen-privacy')"
+                    style="display: flex; justify-content: space-between; padding: 12px 0; cursor: pointer;">
+                    <span style="font-size: 14px; color: var(--text-secondary);">Privacy & Policy</span>
+                    <i class="fas fa-chevron-right" style="font-size: 12px; opacity: 0.5;"></i>
+                </div>
+            </div>
+        </section>
+
+        <!-- About Us Screen -->
+        <section id="screen-about" class="screen">
+            <div class="screen-header">
+                <button class="back-btn" onclick="showScreen('screen-premium')"><i
+                        class="fas fa-arrow-left"></i></button>
+                <h1>About Us</h1>
+            </div>
+            <div class="content-scroll">
+                <p>Welcome to <strong>MealGenna</strong>, your intelligent culinary companion. Our mission is to
+                    simplify healthy eating through cutting-edge AI technology.</p>
+                <p>Born from a passion for both nutrition and innovation, MealGenna uses advanced vision recognition and
+                    the Gemini AI engine to transform your pantry ingredients into professional-grade meal plans.</p>
+                <p>Whether you're a busy professional, a fitness enthusiast, or someone just starting their cooking
+                    journey, we provide the tools to make every meal a masterpiece.</p>
+            </div>
+        </section>
+
+        <!-- Terms & Conditions Screen -->
+        <section id="screen-terms" class="screen">
+            <div class="screen-header">
+                <button class="back-btn" onclick="showScreen('screen-premium')"><i
+                        class="fas fa-arrow-left"></i></button>
+                <h1>Terms & Conditions</h1>
+            </div>
+            <div class="content-scroll">
+                <p>Last Updated: January 14, 2026</p>
+                <h4>1. Acceptance of Terms</h4>
+                <p>By using MealGenna, you agree to comply with and be bound by these Terms and Conditions.</p>
+                <h4>2. Subscription Services</h4>
+                <p>MealGenna Plus is a monthly subscription service priced at $5.99. Payments are processed through the
+                    respective App Store accounts.</p>
+                <h4>3. AI Content</h4>
+                <p>Recipes are generated by AI and should be used for informational purposes only. Always verify
+                    ingredients for allergies or dietary restrictions.</p>
+                <h4>4. User Conduct</h4>
+                <p>Users are responsible for maintaining the confidentiality of their account and device security.</p>
+            </div>
+        </section>
+
+        <!-- Privacy & Policy Screen -->
+        <section id="screen-privacy" class="screen">
+            <div class="screen-header">
+                <button class="back-btn" onclick="showScreen('screen-premium')"><i
+                        class="fas fa-arrow-left"></i></button>
+                <h1>Privacy Policy</h1>
+            </div>
+            <div class="content-scroll">
+                <p>Last Updated: January 14, 2026</p>
+                <h4>1. Data Collection</h4>
+                <p>We collect minimal data required to provide our services, including scans for ingredient
+                    identification and subscription status.</p>
+                <h4>2. Data Usage</h4>
+                <p>Your data is used solely to improve recipe generation and maintain your premium access. We do not
+                    sell your personal data to third parties.</p>
+                <h4>3. Security</h4>
+                <p>We implement industry-standard security measures to protect your information within the app
+                    environment.</p>
+                <h4>4. Third-Party Services</h4>
+                <p>We use Google AdMob for advertisements and Gemini for AI generation. Please refer to their respective
+                    privacy policies for more information.</p>
+            </div>
+        </section>
+
+        <!-- Contact Us Screen -->
+        <section id="screen-contact" class="screen">
+            <div class="screen-header">
+                <button class="back-btn" onclick="showScreen('screen-premium')"><i
+                        class="fas fa-arrow-left"></i></button>
+                <h1>Contact Us</h1>
+            </div>
+            <div class="content-scroll" style="text-align: center; padding-top: 40px;">
+                <div class="premium-icon" style="margin-bottom: 20px;"><i class="fas fa-envelope-open-text"></i></div>
+                <p>Have questions, suggestions, or need support?</p>
+                <p>Reach out to our dedicated team at:</p>
+                <a href="mailto:support@mealgenna.com"
+                    style="color: var(--primary); font-size: 18px; font-weight: 600; text-decoration: none;">support@mealgenna.com</a>
+                <p style="margin-top: 40px; font-size: 12px; color: var(--text-secondary);">We typically respond within
+                    24-48 hours.</p>
+            </div>
+        </section>
+
+        <!-- Bottom Navigation -->
+        <nav class="nav-bottom">
+            <a href="#" class="nav-item active" onclick="showScreen('screen-home', this)">
+                <i class="fas fa-utensils"></i>
+                <span>Home</span>
+            </a>
+            <a href="#" class="nav-item" onclick="showScreen('screen-scanner', this)">
+                <i class="fas fa-camera"></i>
+                <span>Scanner</span>
+            </a>
+            <a href="#" class="nav-item" onclick="showScreen('screen-planner', this)">
+                <i class="fas fa-calendar-alt"></i>
+                <span>Planner</span>
+            </a>
+            <a href="#" class="nav-item" onclick="showScreen('screen-premium', this)">
+                <i class="fas fa-crown"></i>
+                <span>Plus</span>
+            </a>
+        </nav>
+    </div>
+
+    <!-- Recipe Detail Modal -->
+    <div id="recipe-modal" class="modal-overlay">
+        <div class="recipe-detail-container">
+            <div class="recipe-detail-header">
+                <button class="close-modal" onclick="closeRecipeModal()"><i class="fas fa-times"></i></button>
+                <div id="modal-image" class="modal-image"></div>
+            </div>
+            <div class="recipe-detail-body">
+                <h2 id="modal-title">Recipe Title</h2>
+                <div class="recipe-meta-badges">
+                    <span id="modal-time"><i class="far fa-clock"></i> 20 min</span>
+                    <span id="modal-cal"><i class="fas fa-fire"></i> 350 kcal</span>
+                </div>
+
+                <div class="nutrition-grid" id="modal-nutrition"
+                    style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;">
+                    <!-- Injected -->
+                </div>
+
+                <div class="detail-section">
+                    <h3>Ingredients</h3>
+                    <ul id="modal-ingredients">
+                        <!-- Injected -->
+                    </ul>
+                </div>
+
+                <div class="detail-section">
+                    <h3>Instructions</h3>
+                    <ol id="modal-instructions">
+                        <!-- Injected -->
+                    </ol>
+                </div>
+            </div>
+            <div class="recipe-actions">
+                <button class="btn-secondary" onclick="shareRecipe()">
+                    <i class="fas fa-share-alt"></i> Share
+                </button>
+                <button class="btn-primary" onclick="downloadRecipePrompt()">
+                    <i class="fas fa-download"></i> Download
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ad Overlay Mock -->
+    <div id="ad-overlay" class="modal-overlay">
+        <div class="ad-container">
+            <div class="ad-header">
+                <span>Sponsored</span>
+                <div id="ad-timer">5</div>
+            </div>
+            <div class="ad-placeholder">
+                <i class="fas fa-video"></i>
+                <p>Premium Video Advertisement</p>
+            </div>
+            <button id="ad-close-btn" class="btn-secondary" style="display:none;" onclick="closeAd()">Claim
+                Reward</button>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast">Ingredient detected!</div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

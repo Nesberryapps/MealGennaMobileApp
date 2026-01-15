@@ -1,0 +1,103 @@
+name: Build Mobile Apps
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Build Web Assets
+        run: npm run build
+
+      - name: Capacitor Add/Sync Android
+        run: |
+          npx cap add android || true
+          npx cap sync android
+
+      - name: Decode Keystore
+        run: echo "${{ secrets.ANDROID_SIGNING_KEY }}" | base64 --decode > android/app/release.keystore
+
+      - name: Build Android App Bundle (.aab)
+        run: |
+          cd android
+          ./gradlew bundleRelease \
+            -Pandroid.injected.signing.store.file=release.keystore \
+            -Pandroid.injected.signing.store.password=${{ secrets.ANDROID_KEYSTORE_PASSWORD }} \
+            -Pandroid.injected.signing.key.alias=upload \
+            -Pandroid.injected.signing.key.password=${{ secrets.ANDROID_KEY_PASSWORD }}
+        # Note: Change 'upload' above if your key alias is different.
+
+      - name: Upload .aab Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: mealgenna-android-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
+
+  build-ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Build Web Assets
+        run: npm run build
+
+      - name: Capacitor Add/Sync iOS
+        run: |
+          npx cap add ios || true
+          npx cap sync ios
+
+      - name: Install Apple Certificate
+        uses: apple-actions/import-codesign-certs@v1
+        with:
+          p12-file-base64: ${{ secrets.P12_BASE64 }}
+          p12-password: ${{ secrets.P12_PASSWORD }}
+
+      - name: Install Provisioning Profile
+        uses: apple-actions/download-provisioning-profiles@v1
+        with:
+          bundle-id: com.nesberry.mealgenna.pro
+          profile-type: 'IOS_APP_STORE'
+          issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          api-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          api-private-key: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+
+      - name: Build iOS Archive (.ipa)
+        run: |
+          npx cap open ios --nosync
+          # This part usually requires xcodebuild commands. 
+          # For a standard Capacitor project, we use the workspace generated in ios/App
+          xcodebuild -workspace ios/App/App.xcworkspace \
+                     -scheme App \
+                     -sdk iphoneos \
+                     -configuration Release \
+                     -archivePath App.xcarchive \
+                     archive
+                     
+          xcodebuild -exportArchive \
+                     -archivePath App.xcarchive \
+                     -exportOptionsPlist ios/App/App/ExportOptions.plist \
+                     -exportPath output \
+                     -allowProvisioningUpdates
+
+      - name: Upload .ipa Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: mealgenna-ios-ipa
+          path: output/*.ipa

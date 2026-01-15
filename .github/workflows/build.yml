@@ -32,6 +32,8 @@ jobs:
         run: |
           mkdir -p android/app
           echo "${{ secrets.ANDROID_SIGNING_KEY }}" | base64 --decode > android/app/release.keystore
+          # Cheat Code: Try to list aliases. It may ask for a password and fail, but often prints info first.
+          keytool -list -v -keystore android/app/release.keystore -storepass ${{ secrets.ANDROID_KEYSTORE_PASSWORD }} | grep "Alias name" || true
 
       - name: Build Android App Bundle (.aab)
         run: |

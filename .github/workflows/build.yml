@@ -9,10 +9,10 @@ jobs:
   build-android:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: set up JDK 17
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
@@ -39,10 +39,9 @@ jobs:
             -Pandroid.injected.signing.store.password=${{ secrets.ANDROID_KEYSTORE_PASSWORD }} \
             -Pandroid.injected.signing.key.alias=upload \
             -Pandroid.injected.signing.key.password=${{ secrets.ANDROID_KEY_PASSWORD }}
-        # Note: Change 'upload' above if your key alias is different.
 
       - name: Upload .aab Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: mealgenna-android-aab
           path: android/app/build/outputs/bundle/release/app-release.aab
@@ -50,7 +49,7 @@ jobs:
   build-ios:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install Dependencies
         run: npm install
@@ -76,13 +75,11 @@ jobs:
           profile-type: 'IOS_APP_STORE'
           issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           api-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          api-private-key: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+          api-key-content: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
 
       - name: Build iOS Archive (.ipa)
         run: |
           npx cap open ios --nosync
-          # This part usually requires xcodebuild commands. 
-          # For a standard Capacitor project, we use the workspace generated in ios/App
           xcodebuild -workspace ios/App/App.xcworkspace \
                      -scheme App \
                      -sdk iphoneos \
@@ -97,7 +94,7 @@ jobs:
                      -allowProvisioningUpdates
 
       - name: Upload .ipa Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: mealgenna-ios-ipa
           path: output/*.ipa

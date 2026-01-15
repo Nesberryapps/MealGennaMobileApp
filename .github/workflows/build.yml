@@ -150,6 +150,11 @@ jobs:
           </plist>
           EOF
 
+      - name: Disable Pods Signing
+        run: |
+          sed -i '' 's/CODE_SIGNING_ALLOWED = YES/CODE_SIGNING_ALLOWED = NO/g' ios/App/Pods/Pods.xcodeproj/project.pbxproj || true
+          sed -i '' 's/CODE_SIGNING_REQUIRED = YES/CODE_SIGNING_REQUIRED = NO/g' ios/App/Pods/Pods.xcodeproj/project.pbxproj || true
+
       - name: Build iOS Archive (.ipa)
         run: |
           xcodebuild -workspace ios/App/App.xcworkspace \

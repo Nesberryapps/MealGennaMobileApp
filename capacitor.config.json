@@ -1,6 +1,5 @@
 {
     "appId": "com.nesberry.mealgenna.pro",
     "appName": "MealGenna",
-    "webDir": ".",
-    "bundledWebRuntime": false
+    "webDir": "www"
 }

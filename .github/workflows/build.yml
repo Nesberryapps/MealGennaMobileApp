@@ -65,6 +65,15 @@ jobs:
         run: |
           npx cap add ios || true
           npx cap sync ios
+          # Fix Pods signing (Standard Capacitor/iOS CI fix)
+          echo "post_install do |installer|" >> ios/App/Podfile
+          echo "  installer.pods_project.targets.each do |target|" >> ios/App/Podfile
+          echo "    target.build_configurations.each do |config|" >> ios/App/Podfile
+          echo "      config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'" >> ios/App/Podfile
+          echo "    end" >> ios/App/Podfile
+          echo "  end" >> ios/App/Podfile
+          echo "end" >> ios/App/Podfile
+          cd ios/App && pod install && cd ../..
 
       - name: Install Apple Certificate
         shell: python
@@ -152,8 +161,8 @@ jobs:
 
       - name: Disable Pods Signing
         run: |
-          sed -i '' 's/CODE_SIGNING_ALLOWED = YES/CODE_SIGNING_ALLOWED = NO/g' ios/App/Pods/Pods.xcodeproj/project.pbxproj || true
-          sed -i '' 's/CODE_SIGNING_REQUIRED = YES/CODE_SIGNING_REQUIRED = NO/g' ios/App/Pods/Pods.xcodeproj/project.pbxproj || true
+          # This step is now partially handled by the Podfile hook, but let's keep it as extra safety
+          find ios/App/Pods -name "*.xcodeproj" -exec sed -i '' 's/CODE_SIGNING_ALLOWED = YES/CODE_SIGNING_ALLOWED = NO/g' {}/project.pbxproj \; || true
 
       - name: Build iOS Archive (.ipa)
         run: |
@@ -166,14 +175,7 @@ jobs:
                      CODE_SIGN_STYLE=Manual \
                      CODE_SIGN_IDENTITY="Apple Distribution" \
                      PROVISIONING_PROFILE_SPECIFIER=${{ env.PROVISION_UUID }} \
-                     archive \
-                     "EXCLUDED_ARCHS[sdk=iphonesimulator*]=arm64"
-                     
-          xcodebuild -exportArchive \
-                     -archivePath App.xcarchive \
-                     -exportOptionsPlist ExportOptions.plist \
-                     -exportPath output \
-                     -allowProvisioningUpdates
+                     archive
                      
           xcodebuild -exportArchive \
                      -archivePath App.xcarchive \

@@ -15,7 +15,7 @@ on:
         description: 'Paste the Private Key (for Step 2)'
         required: false
       cert_base64:
-        description: 'Paste the .cer base64 string (NOT the command)'
+        description: 'Paste the .cer base64 string'
         required: false
       p12_password:
         description: 'Choose a password for your .p12'
@@ -43,21 +43,27 @@ jobs:
           RAW_PRIVATE_KEY: ${{ github.event.inputs.private_key }}
           RAW_CERT_BASE64: ${{ github.event.inputs.cert_base64 }}
         run: |
-          # Clean inputs
-          echo "$RAW_PRIVATE_KEY" | sed 's/"//g' > private.key
-          echo "$RAW_CERT_BASE64" | sed 's/"//g' | tr -d '\n\r ' > cert_cleaned.txt
+          # Clean inputs: remove quotes and whitespace
+          echo "$RAW_PRIVATE_KEY" | tr -d '"' > private.key
+          echo "$RAW_CERT_BASE64" | tr -d '" '" | tr -d '\n\r' > cert_cleaned.txt
           
           if [ ! -s cert_cleaned.txt ]; then
-            echo "Error: Cert Base64 input is empty or invalid!"
+            echo "Error: Cert Base64 input is empty!"
             exit 1
           fi
 
-          # Use Mac-specific base64 syntax
-          base64 -D -i cert_cleaned.txt -o distribution.cer
+          # Use openssl for more robust base64 decoding
+          openssl base64 -d -A -in cert_cleaned.txt -out distribution.cer
           
+          # Check if the file was created and is not empty
+          if [ ! -s distribution.cer ]; then
+            echo "Error: Failed to decode certificate!"
+            exit 1
+          fi
+
           openssl x509 -in distribution.cer -inform DER -out distribution.crt
           openssl pkcs12 -export -out release.p12 -inkey private.key -in distribution.crt -password pass:${{ github.event.inputs.p12_password }}
           
           echo "----------------- YOUR P12 IS READY -----------------"
           echo "Copy the block below and save it as your P12_BASE64 secret in GitHub:"
-          base64 -i release.p12
+          openssl base64 -in release.p12 -A

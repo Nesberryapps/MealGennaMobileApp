@@ -1,0 +1,27 @@
+name: iOS Certificate Helper
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate-csr:
+    runs-on: macos-latest
+    steps:
+      - name: Generate Private Key and CSR
+        run: |
+          openssl genrsa -out private.key 2048
+          openssl req -new -key private.key -out request.csr -subj "/Email=shemh@example.com/CN=MealGenna/C=US"
+          echo "----------------- COPY EVERYTHING BELOW THIS LINE (THE CSR) -----------------"
+          cat request.csr
+          echo "----------------- STOP COPYING ABOVE THIS LINE -----------------"
+          
+          echo ""
+          echo "----------------- COPY EVERYTHING BELOW THIS LINE (THE PRIVATE KEY) -----------------"
+          cat private.key
+          echo "----------------- STOP COPYING ABOVE THIS LINE -----------------"
+          
+      - name: Instructions
+        run: |
+          echo "1. Save the CSR text as 'ios.csr' and upload it to the Apple Developer Portal."
+          echo "2. Download the 'distribution.cer' from Apple."
+          echo "3. Come back here for the next step where we combine them into a .p12!"

@@ -73,13 +73,9 @@ jobs:
           p12-password: ${{ secrets.P12_PASSWORD }}
 
       - name: Install Provisioning Profile
-        uses: apple-actions/download-provisioning-profiles@v1
-        with:
-          bundle-id: com.nesberry.mealgenna.pro
-          profile-type: 'IOS_APP_STORE'
-          issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          api-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          api-private-key: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+        run: |
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "${{ secrets.MOBILEPROVISION_BASE64 }}" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/AppStore.mobileprovision
 
       - name: Build iOS Archive (.ipa)
         run: |

@@ -214,17 +214,6 @@ async function generateFromPreferences() {
     cuisine: document.getElementById('select-cuisine').value
   };
 
-  // Bot Protection (Placeholder logic - requires actual site key in index.html)
-  if (typeof grecaptcha !== 'undefined') {
-    try {
-      const token = await grecaptcha.execute('R-XXXXXXXXXX', { action: 'generate_meal' });
-      console.log("reCAPTCHA Token:", token);
-      // In a real app, send this token to your server for verification
-    } catch (e) {
-      console.warn("reCAPTCHA failed, proceeding anyway for demo.");
-    }
-  }
-
   if (appState.isPremium) {
     const results = await generateAIRecipes(preferences);
     appState.generatedRecipes = results;
@@ -577,13 +566,6 @@ function generateRecipesFromScan() {
   }
 
   const processResults = async () => {
-    // Bot Protection check
-    if (typeof grecaptcha !== 'undefined') {
-      try {
-        await grecaptcha.execute('R-XXXXXXXXXX', { action: 'scan_meal' });
-      } catch (e) { }
-    }
-
     const preferences = {
       time: "Lunch",
       diet: "None",
@@ -696,53 +678,6 @@ document.addEventListener('DOMContentLoaded', () => {
   renderPlanner();
   updatePremiumUI();
 
-  // Initialize Notifications
-  initNotifications();
-
   // Default initial ideas
   generateAIRecipes({ time: "Dinner", diet: "None", cuisine: "Any" }).then(res => renderRecipes(res));
 });
-
-// --- NOTIFICATION SYSTEM ---
-async function initNotifications() {
-  try {
-    const { LocalNotifications } = Capacitor.Plugins;
-    if (!LocalNotifications) return;
-
-    const perm = await LocalNotifications.requestPermissions();
-    if (perm.display === 'granted') {
-      // Clear existing to avoid duplicates
-      await LocalNotifications.cancel({ notifications: [{ id: 1 }, { id: 2 }, { id: 3 }] });
-
-      await LocalNotifications.schedule({
-        notifications: [
-          {
-            title: "Good Morning! ☀️",
-            body: "Time to plan a fresh breakfast. What's on the menu?",
-            id: 1,
-            schedule: { on: { hour: 8, minute: 0 }, every: 'day' },
-            sound: 'beep.wav'
-          },
-          {
-            title: "Lunch Break! 🥗",
-            body: "Hungry? Let's find some delicious lunch ideas.",
-            id: 2,
-            schedule: { on: { hour: 12, minute: 30 }, every: 'day' },
-            sound: 'beep.wav'
-          },
-          {
-            title: "Dinner Planning 🍽️",
-            body: "Ready for dinner? See what MealGenna suggests.",
-            id: 3,
-            schedule: { on: { hour: 18, minute: 0 }, every: 'day' },
-            sound: 'beep.wav'
-          }
-        ]
-      });
-      console.log("Daily notifications scheduled.");
-    }
-  } catch (err) {
-    console.error("Notifications Error:", err);
-  }
-}
-

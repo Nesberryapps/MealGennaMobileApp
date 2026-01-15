@@ -38,11 +38,24 @@ jobs:
           
       - name: Step 2 - Create P12
         if: ${{ github.event.inputs.step == '2-create-p12' }}
+        shell: bash
+        env:
+          RAW_PRIVATE_KEY: ${{ github.event.inputs.private_key }}
+          RAW_CERT_BASE64: ${{ github.event.inputs.cert_base64 }}
         run: |
-          echo "${{ github.event.inputs.private_key }}" > private.key
-          echo "${{ github.event.inputs.cert_base64 }}" | base64 --decode > distribution.cer
+          # Clean quotes and spaces from inputs
+          echo "$RAW_PRIVATE_KEY" | sed 's/"//g' > private.key
+          echo "$RAW_CERT_BASE64" | sed 's/"//g' | tr -d '\n\r ' > cert_cleaned.txt
+          
+          if [ ! -s cert_cleaned.txt ]; then
+            echo "Error: Cert Base64 input is empty!"
+            exit 1
+          fi
+
+          base64 --decode cert_cleaned.txt > distribution.cer
           openssl x509 -in distribution.cer -inform DER -out distribution.crt
           openssl pkcs12 -export -out release.p12 -inkey private.key -in distribution.crt -password pass:${{ github.event.inputs.p12_password }}
+          
           echo "----------------- YOUR P12 IS READY -----------------"
           echo "Copy the block below and save it as your P12_BASE64 secret in GitHub:"
           base64 -i release.p12

@@ -1,5 +1,7 @@
 name: iOS Certificate Helper
 
+# This helper will now generate a downloadable file to avoid copy-paste errors!
+
 on:
   workflow_dispatch:
     inputs:
@@ -44,16 +46,11 @@ jobs:
           RAW_CERT_BASE64: ${{ github.event.inputs.cert_base64 }}
           P12_PASSWORD: ${{ github.event.inputs.p12_password }}
         run: |
-          import os
-          import base64
-          import subprocess
-          import re
+          import os, base64, subprocess, re
 
-          # Helper to clean strings
           def clean_it(s):
               return re.sub(r'[^A-Za-z0-9+/=]', '', s)
 
-          # Process Private Key
           raw_pk = os.environ.get('RAW_PRIVATE_KEY', '')
           pk_content = clean_it(raw_pk.replace('BEGIN RSA PRIVATE KEY', '').replace('END RSA PRIVATE KEY', ''))
           final_pk = f"-----BEGIN RSA PRIVATE KEY-----\n{pk_content}\n-----END RSA PRIVATE KEY-----"
@@ -61,31 +58,26 @@ jobs:
           with open('private.key', 'w') as f:
               f.write(final_pk)
 
-          # Process Certificate
           raw_cb64 = os.environ.get('RAW_CERT_BASE64', '')
           cert_content = clean_it(raw_cb64)
-          
-          if not cert_content:
-              print("Error: Certificate data is empty!")
-              exit(1)
-
           with open('distribution.cer', 'wb') as f:
               f.write(base64.b64decode(cert_content))
 
-          # Run OpenSSL Commands
-          try:
-              # Convert DER to CRT
-              subprocess.run(['openssl', 'x509', '-in', 'distribution.cer', '-inform', 'DER', '-out', 'distribution.crt'], check=True)
-              
-              # Create P12
-              pw = os.environ.get('P12_PASSWORD', 'MealMind2026')
-              subprocess.run(['openssl', 'pkcs12', '-export', '-out', 'release.p12', '-inkey', 'private.key', '-in', 'distribution.crt', '-password', f'pass:{pw}'], check=True)
+          pw = os.environ.get('P12_PASSWORD', 'MealMind2026')
+          subprocess.run(['openssl', 'x509', '-in', 'distribution.cer', '-inform', 'DER', '-out', 'distribution.crt'], check=True)
+          subprocess.run(['openssl', 'pkcs12', '-export', '-out', 'release.p12', '-inkey', 'private.key', '-in', 'distribution.crt', '-password', f'pass:{pw}'], check=True)
 
-              # Output Result
-              print("\n----------------- YOUR P12 IS READY -----------------")
-              with open('release.p12', 'rb') as f:
-                  print(base64.b64encode(f.read()).decode('utf-8'))
-              print("----------------- END OF BASE64 -----------------")
-          except subprocess.CalledProcessError as e:
-              print(f"OpenSSL failed: {e}")
-              exit(1)
+          # CREATE DOWNLOADABLE FILE
+          with open('release.p12', 'rb') as f:
+              encoded = base64.b64encode(f.read()).decode('utf-8')
+              with open('final_p12_base64.txt', 'w') as out:
+                  out.write(encoded)
+          
+          print("\nDONE! You can now download the 'ios-p12-base64' artifact from the Summary tab.")
+
+      - name: Upload Artifact
+        if: ${{ github.event.inputs.step == '2-create-p12' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-p12-base64
+          path: final_p12_base64.txt

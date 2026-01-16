@@ -70,24 +70,13 @@ jobs:
         run: |
           npx cap add ios || true
           npx cap sync ios
-          # Fix Pods signing safely (Standard Capacitor/iOS CI fix)
-          python3 -c "
-          import os
-          path = 'ios/App/Podfile'
-          if os.path.exists(path):
-              content = open(path).read()
-              if 'installer.pods_project.targets.each' not in content:
-                  logic = \"\"\"
-            installer.pods_project.targets.each do |target|
-              target.build_configurations.each do |config|
-                config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
-              end
-            end
-          \"\"\"
-                  content = content.replace('post_install do |installer|', 'post_install do |installer|' + logic)
-                  open(path, 'w').write(content)
-          "
-          cd ios/App && pod install && cd ../..
+          # Fix Pods signing safely
+
+      - name: Install Pods
+        run: |
+          # Force a stable Xcode version for Capacitor 5 compatibility
+          sudo xcode-select -s /Applications/Xcode_15.4.app
+          cd ios/App && pod repo update && pod install && cd ../..
 
       - name: Install Apple Certificate
         shell: python

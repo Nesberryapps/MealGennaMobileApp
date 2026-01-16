@@ -46,10 +46,163 @@ function updateGreeting() {
 // 2. Navigation
 function showScreen(screenId, element) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById(screenId).classList.add('active');
+  const target = document.getElementById(screenId);
+  if (target) target.classList.add('active');
+
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  if (element) element.classList.add('active');
+
+  // Logic to handle tab highlighting when navigating via showScreen calls from JS
+  if (element) {
+    element.classList.add('active');
+  } else {
+    // Attempt to match the tab to the screen
+    const tabs = document.querySelectorAll('.nav-item');
+    if (screenId === 'screen-home') tabs[0].classList.add('active');
+    else if (screenId === 'screen-scanner') tabs[1].classList.add('active');
+    else if (screenId === 'screen-planner') tabs[2].classList.add('active');
+    else if (screenId === 'screen-health') tabs[3].classList.add('active');
+  }
+
   appState.currentScreen = screenId;
+
+  // If entering health screen, ensure report is visible if content exists
+  if (screenId === 'screen-health' && document.getElementById('health-report-content').innerHTML.trim() !== '') {
+    document.getElementById('health-report-container').style.display = 'block';
+  }
+}
+
+// 2.1 Health Consultant Logic
+function setHealthGoal(goal) {
+  document.getElementById('health-description').value = goal;
+  showToast("Goal Profile set!");
+}
+
+async function generateHealthReport() {
+  const description = document.getElementById('health-description').value;
+  if (!description || description.length < 5) {
+    showToast("Please provide more details about your goal.");
+    return;
+  }
+
+  // Ad-Gating Logic
+  if (appState.isPremium) {
+    fetchHealthReport(description);
+  } else {
+    showToast("Watch 2 ads to unlock your AI Health Report!");
+    watchAd(() => {
+      showToast("1/2 Ads watched. Loading final ad...");
+      setTimeout(() => {
+        watchAd(() => {
+          fetchHealthReport(description);
+        });
+      }, 1000);
+    });
+  }
+}
+
+async function fetchHealthReport(description) {
+  const btn = document.getElementById('btn-health-gen');
+  const originalText = btn.innerHTML;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing Data...';
+  btn.disabled = true;
+
+  const hasValidKey = GEMINI_API_KEY && GEMINI_API_KEY !== "PASTE_YOUR_GEMINI_API_KEY_HERE";
+
+  try {
+    if (!hasValidKey) throw new Error("Missing API Key");
+
+    const prompt = `You are a Senior Clinical Nutritionist & Executive Chef.
+    Generate a specialized, high-end meal plan for: "${description}".
+    
+    1. **Clinical Blueprint**: Deep medical/nutritional analysis.
+    2. **Specialist Meals**: 3 Gourmet options (Breakfast, Lunch, Dinner) that fit the health goal but taste like fine dining.
+
+    IMAGE RULES: Provide TWO visual keys for specific image matching:
+    - 'img_main': The main ingredient (e.g., 'salmon', 'oats', 'tofu').
+    - 'img_style': The style (e.g., 'bowl', 'salad', 'grilled', 'soup').
+
+    Return JSON:
+    {
+      "report_html": "HTML string...",
+      "meals": [
+        {"title": "Gourmet Title", "time": "...", "cal": "...", "protein": "...", "carbs": "...", "fats": "...", "ingredients": [], "instructions": [], "img_main": "...", "img_style": "..."}
+      ]
+    }`;
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    });
+
+    const data = await response.json();
+    const rawText = data.candidates[0].content.parts[0].text;
+    const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+    renderHealthResults(JSON.parse(cleanJson));
+
+  } catch (error) {
+    console.warn("Health Gen Fallback:", error);
+    const fallbackData = {
+      report_html: `<div class="report-category"><h3>Clinical Blueprint</h3><p>Analysis for: "${description}". Focus on anti-inflammatory whole foods.</p></div>`,
+      meals: [
+        { title: "Gourmet Protein Oats", time: "10 min", cal: "380 kcal", protein: "28g", carbs: "45g", fats: "12g", ingredients: ["Oats", "Whey Protein", "Blueberries", "Almond Butter", "Cinnamon", "Chia"], instructions: ["Cook oats.", "Stir in protein.", "Top with berries.", "Sprinkle chia."], img_main: "oatmeal", img_style: "berries" },
+        { title: "Avocado Chicken Bowl", time: "15 min", cal: "550 kcal", protein: "42g", carbs: "35g", fats: "26g", ingredients: ["Grilled Chicken", "Quinoa", "Avocado", "Black Beans", "Cilantro", "Lime"], instructions: ["Mix quinoa and beans.", "Top with chicken.", "Add avocado.", "Drizzle lime."], img_main: "chicken", img_style: "bowl" },
+        { title: "Seared Steak & Greens", time: "20 min", cal: "680 kcal", protein: "52g", carbs: "12g", fats: "45g", ingredients: ["Sirloin Steak", "Kale", "Asparagus", "Garlic Butter", "Sea Salt", "Pepper"], instructions: ["Season steak.", "Sauté kale.", "Grill asparagus.", "Rest and serve."], img_main: "steak", img_style: "grilled" }
+      ]
+    };
+    renderHealthResults(fallbackData);
+  } finally {
+    btn.innerHTML = originalText;
+    btn.disabled = false;
+  }
+}
+
+function renderHealthResults(data) {
+  document.getElementById('health-report-content').innerHTML = data.report_html;
+  const mealsList = document.getElementById('health-meals-list');
+  const recipes = data.meals.map((m, i) => {
+    return {
+      id: Date.now() + i,
+      title: m.title,
+      time: m.time,
+      cal: m.cal,
+      badge: 'Specialist',
+      nutrition: { protein: m.protein, carbs: m.carbs, fats: m.fats },
+      ingredients: m.ingredients,
+      instructions: m.instructions,
+      // Robust Free Image Logic
+      image: `https://loremflickr.com/800/600/meal,cooked,${m.img_main},${m.img_style}?sig=${Date.now() + i}`
+    };
+  });
+
+  mealsList.innerHTML = recipes.map(r => `
+    <div class="recipe-card" onclick="handleHealthMealClick(${JSON.stringify(r).replace(/"/g, '&quot;')})">
+      <div class="recipe-image" style="background-image: url('${r.image}')">
+        <div class="recipe-badge">${r.badge}</div>
+        <div class="tap-overlay"><i class="fas fa-lock"></i> Tap to Unlock</div>
+      </div>
+      <div class="recipe-content">
+        <h3>${r.title}</h3>
+        <div class="recipe-meta">
+          <span><i class="far fa-clock"></i> ${r.time}</span>
+          <span><i class="fas fa-fire"></i> ${r.cal}</span>
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  document.getElementById('health-meals-section').style.display = 'block';
+  document.getElementById('health-report-container').style.display = 'block';
+  document.getElementById('health-report-container').scrollIntoView({ behavior: 'smooth' });
+}
+
+function handleHealthMealClick(recipe) {
+  if (appState.isPremium) {
+    openRecipeModal(recipe);
+  } else {
+    showToast("Unlocking specialist recipe details...");
+    watchAd(() => openRecipeModal(recipe));
+  }
 }
 
 // 3. AI Generation Logic (Live Gemini + High-Quality Mock)
@@ -66,25 +219,34 @@ async function generateAIRecipes(preferences) {
         contextStr += ` IMPORTANT: Use these scanned ingredients as the primary components: ${preferences.scannedIngredients.join(', ')}.`;
       }
 
-      const prompt = `You are a World-Class Executive Chef. Generate 3 unique, high-end, and creative meal ideas for ${preferences.time}. 
+      const prompt = `You are a Michelin Star Executive Chef known for Avant-Garde and Fusion cuisine.
+            Your task is to generate 3 UNIQUE, HIGH-END meal concepts for: ${preferences.time}.
             Cuisine: ${preferences.cuisine}, Diet: ${preferences.diet}.
-            
-            RULES for Titles:
-            - DO NOT simply prefix with the cuisine name (e.g., Avoid "Asian Fusion Pasta").
-            - DO use mouth-watering, specific names (e.g., "Lemongrass Infused Chicken Kababs" or "Truffle Ricotta Agnolotti").
-            - Be bold and gourmet.
 
-            For each meal, provide: 
-            1. A stunning, specific title.
-            2. Cooking time (e.g. "25 min"), Calories (e.g. "450 kcal").
-            3. Macro values (e.g. "32g", "45g", "12g").
-            4. 6 gourmet ingredients.
-            5. 4 professional cooking steps.
-            6. Precisely 2 visual keywords that describe ONLY the food itself for a photo search (e.g. "roasted,chicken" or "sushi,roll"). NO broad words like 'fusion', 'asian', or 'delicious'.
-            
-            Return ONLY a valid JSON array of 3 objects with keys: title, time, cal, protein, carbs, fats, ingredients, instructions, image_keywords.`;
+            CRITICAL RULES:
+            1. **NO GENERIC TITLES**: Banish boring names like "Chicken Salad". Use evocative, sensory language (e.g., "Miso-Glazed Black Cod with Yuzu Foam" or "Truffle & Wild Mushroom Risotto").
+            2. **CULINARY VARIETY**: Explore diverse textures, temperatures, and techniques (Sous-vide, Charred, Fermented, Smoked).
+            3. **IMAGE ACCURACY**: You must provide TWO separate visual keys for the image search. 
+               - 'img_main': The core ingredient (e.g., 'salmon', 'steak', 'gnochi', 'tofu').
+               - 'img_style': The presentation style (e.g., 'grilled', 'bowl', 'soup', 'salad', 'fancy').
+               - KEEP THESE SIMPLE. Do not use underscores or compound words. Just standard single words.
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+            Output Format (JSON Array of 3 objects):
+            {
+              "title": "Stunning Menu Title",
+              "time": "XX min",
+              "cal": "XXX kcal",
+              "protein": "XXg",
+              "carbs": "XXg",
+              "fats": "XXg",
+              "ingredients": ["6", "gourmet", "items", "only"],
+              "instructions": ["4", "chef-grade", "steps"],
+              "img_main": "simple_ingredient_word", 
+              "img_style": "simple_style_word"
+            }
+            Return ONLY valid JSON.`;
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${GEMINI_API_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -97,99 +259,86 @@ async function generateAIRecipes(preferences) {
       const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
       const aiResults = JSON.parse(cleanJson);
 
-      const types = ["Fast", "Healthy", "Hearty"];
-      return aiResults.map((m, i) => ({
-        id: Date.now() + i,
-        title: m.title,
-        time: m.time,
-        cal: m.cal,
-        badge: types[i],
-        nutrition: { protein: m.protein, carbs: m.carbs, fats: m.fats },
-        ingredients: m.ingredients,
-        instructions: m.instructions,
-        image: `https://loremflickr.com/800/600/food,${m.image_keywords ? m.image_keywords.toLowerCase().replace(/[^a-z,]/g, '') : 'meal'}/all`
-      }));
+      const types = ["Chef's Choice", "Seasonal", "Signature"];
+      return aiResults.map((m, i) => {
+        return {
+          id: Date.now() + i,
+          title: m.title,
+          time: m.time,
+          cal: m.cal,
+          badge: types[i],
+          nutrition: { protein: m.protein, carbs: m.carbs, fats: m.fats },
+          ingredients: m.ingredients,
+          instructions: m.instructions,
+          // Robust Free Image Logic: 'meal' + unique ingredient
+          image: `https://loremflickr.com/800/600/meal,${m.img_main},${m.img_style}?sig=${Date.now() + i}`
+        };
+      });
     } catch (error) {
       console.error("Gemini API Error:", error);
-      showToast("Gemini Error. Using High-Quality backup ideas.");
+      showToast("Gemini busy. Chef's top picks loaded instead.");
     }
   }
 
-  // --- REFINED MOCK FALLBACK ---
-  const types = ["Fast", "Healthy", "Hearty"];
+  // --- REFINED MOCK FALLBACK (Expanded for Variety) ---
+  const types = ["Chef's Selection", "Seasonal", "Signature"];
   const mockLibrary = {
     Breakfast: [
-      {
-        title: "Truffle Infused Avocado Royale",
-        img: "avocado,toast",
-        ingredients: ["2 slices Sourdough", "1 Ripe Avocado", "Truffle Oil", "Poached Egg", "Microgreens", "Sea Salt"],
-        instructions: ["Toast the sourdough until golden and crisp.", "Mash avocado with a hint of truffle oil and salt.", "Spread over toast and top with a perfectly poached egg.", "Garnish with microgreens for a royal finish."]
-      },
-      {
-        title: "Mediterranean Shakshuka Sizzle",
-        img: "shakshuka",
-        ingredients: ["2 Eggs", "Bell Peppers", "Tomato Puree", "Feta Cheese", "Harissa", "Fresh Parsley"],
-        instructions: ["Sauté bell peppers with harissa until tender.", "Pour in tomato puree and simmer on medium heat.", "Crack eggs into the sauce and cook until whites set.", "Finish with crumbled feta and fresh parsley."]
-      },
-      {
-        title: "Golden Honey Almond Oatmeal",
-        img: "oatmeal,berries",
-        ingredients: ["1 cup Steel Cut Oats", "Almond Milk", "Manuka Honey", "Blueberries", "Almonds", "Cinnamon"],
-        instructions: ["Cook oats in almond milk until thick and creamy.", "Stir in a dash of cinnamon and honey.", "Top with toasted almonds and fresh blueberries.", "Drizzle with extra honey before serving."]
-      }
+      { title: "Truffle Infused Avocado Royale", img: "avocado,toast", ingredients: ["Sourdough", "Avocado", "Truffle Oil", "Poached Egg", "Microgreens", "Sea Salt"], instructions: ["Toast bread.", "Mash avocado with truffle.", "Add egg.", "Garnish."] },
+      { title: "Mediterranean Shakshuka Sizzle", img: "shakshuka,pan", ingredients: ["Eggs", "Bell Peppers", "Tomato Puree", "Feta", "Harissa", "Parsley"], instructions: ["Sauté peppers.", "Simmer tomatoes.", "Poach eggs in sauce.", "Add feta."] },
+      { title: "Golden Honey Almond Oatmeal", img: "oatmeal,bowl", ingredients: ["Steel Cut Oats", "Almond Milk", "Manuka Honey", "Blueberries", "Almonds", "Cinnamon"], instructions: ["Simmer oats.", "Add milk.", "Top with berries.", "Drizzle honey."] },
+      { title: "Smoked Salmon Benedict", img: "eggs,benedict", ingredients: ["English Muffin", "Smoked Salmon", "Poached Egg", "Hollandaise", "Dill", "Capers"], instructions: ["Toast muffin.", "Layer salmon.", "Add egg.", "Pour sauce."] },
+      { title: "Acai Superfood Bowl", img: "acai,bowl", ingredients: ["Acai Puree", "Granola", "Banana", "Chia Seeds", "Coconut Flakes", "Honey"], instructions: ["Blend acai.", "Pour into bowl.", "Arrange toppings.", "Serve cold."] }
     ],
     Lunch: [
-      {
-        title: "Zesty Pesto Atlantic Salmon",
-        img: "salmon,grilled",
-        ingredients: ["Salmon Fillet", "Fresh Basil Pesto", "Quinoa", "Cherry Tomatoes", "Lemon", "Garlic"],
-        instructions: ["Pan-sear salmon until the skin is perfectly crispy.", "Glaze with a generous layer of basil pesto.", "Serve over a bed of fluffy lemon-garlic quinoa.", "Garnish with roasted cherry tomatoes."]
-      },
-      {
-        title: "Artisan Mediterranean Poke Bowl",
-        img: "poke,bowl",
-        ingredients: ["Fresh Ahi Tuna", "Sushi Rice", "Edamame", "Soy Sauce", "Ginger", "Radish"],
-        instructions: ["Cube the tuna and marinate in a soy-ginger dressing.", "Assemble rice in a bowl and arrange edamame and radish.", "Place marinated tuna on top.", "Drizzle with a touch of sesame oil."]
-      }
+      { title: "Zesty Pesto Atlantic Salmon", img: "salmon,grilled", ingredients: ["Salmon Fillet", "Basil Pesto", "Quinoa", "Cherry Tomatoes", "Lemon", "Garlic"], instructions: ["Sear salmon.", "Coat with pesto.", "Serve over quinoa.", "Add tomatoes."] },
+      { title: "Artisan Mediterranean Poke Bowl", img: "poke,bowl", ingredients: ["Ahi Tuna", "Sushi Rice", "Edamame", "Soy Sauce", "Ginger", "Radish"], instructions: ["Cube tuna.", "Marinate.", "Assemble bowl.", "Garnish."] },
+      { title: "Tuscan Grilled Chicken Paillard", img: "chicken,grilled", ingredients: ["Chicken Breast", "Arugula", "Parmesan", "Lemon Vinaigrette", "Cherry Tomatoes", "Pine Nuts"], instructions: ["Pound chicken thin.", "Grill hard.", "Top with salad.", "Drizzle dressing."] },
+      { title: "Spicy Thai Basil Beef", img: "beef,stirfry", ingredients: ["Ground Beef", "Thai Basil", "Chili Peppers", "Fish Sauce", "Jasmine Rice", "Fried Egg"], instructions: ["Stir fry beef.", "Add chilies.", "Toss with basil.", "Serve with rice."] },
+      { title: "Roasted Butternut Squash Risotto", img: "risotto,dish", ingredients: ["Arborio Rice", "Butternut Squash", "Sage", "Parmesan", "White Wine", "Butter"], instructions: ["Roast squash.", "Cook risotto slow.", "Fold in squash.", "Finish with butter."] }
     ],
     Dinner: [
-      {
-        title: "Herb Crusted Signature Ribeye",
-        img: "steak,ribeye",
-        ingredients: ["8oz Prime Ribeye", "Fresh Rosemary", "Garlic Butter", "Thyme", "Asparagus", "Sea Salt"],
-        instructions: ["Season ribeye and sear in a cast-iron skillet.", "Baste continuously with garlic butter and fresh herbs.", "Grill asparagus alongside the steak until charred.", "Rest for 5 minutes for maximum juiciness."]
-      }
+      { title: "Herb Crusted Signature Ribeye", img: "steak,ribeye", ingredients: ["Ribeye Steak", "Rosemary", "Garlic Butter", "Thyme", "Asparagus", "Sea Salt"], instructions: ["Sear steak.", "Baste with butter.", "Rest meat.", "Serve with greens."] },
+      { title: "Pan-Seared Chilean Sea Bass", img: "seabass,fish", ingredients: ["Sea Bass", "Miso Glaze", "Bok Choy", "Ginger", "Sesame Oil", "Scallions"], instructions: ["Glaze fish.", "Sear skin side down.", "Sauté bok choy.", "Plate elegantly."] },
+      { title: "Duck Breast with Cherry Reduction", img: "duck,breast", ingredients: ["Duck Breast", "Cherries", "Red Wine", "Thyme", "Shallots", "Butter"], instructions: ["Score duck skin.", "Render fat.", "Make sauce.", "Slice thin."] },
+      { title: "Wild Mushroom & Truffle Linguine", img: "pasta,truffle", ingredients: ["Fresh Linguine", "Wild Mushrooms", "Truffle Cream", "Parmesan", "Parsley", "Garlic"], instructions: ["Sauté mushrooms.", "Cook pasta.", "Toss in cream.", "Garnish."] },
+      { title: "Slow-Braised Lamb Shank", img: "lamb,shank", ingredients: ["Lamb Shank", "Red Wine", "Carrots", "Onions", "Polenta", "Rosemary"], instructions: ["Sear lamb.", "Braise for 3 hours.", "Serve over polenta.", "Spoon sauce."] }
     ]
   };
 
   const selectedPool = mockLibrary[preferences.time] || mockLibrary['Dinner'];
 
-  return types.map((type, i) => {
-    const id = Date.now() + i;
-    const baseMeal = selectedPool[i % selectedPool.length];
+  // Shuffle and Pick 3 Unique
+  const shuffled = selectedPool.sort(() => 0.5 - Math.random()).slice(0, 3);
 
-    // Modern logic: create a gourmet fusion title
+  return types.map((type, i) => {
+    const baseMeal = shuffled[i];
+    const id = Date.now() + i;
+
+    // Fixed Title Logic
     let finalTitle = baseMeal.title;
     if (preferences.cuisine !== 'Any') {
-      const culinaryStyle = ["Artisan", "Signature", "Heritage", "Rustic"];
-      const prefix = culinaryStyle[i % culinaryStyle.length];
-      finalTitle = `${prefix} ${preferences.cuisine} ${baseMeal.title}`;
+      finalTitle = `${preferences.cuisine} Style ${baseMeal.title}`;
     }
+
+    // FALBACK IMAGE GENERATION (Stable & Free)
+    // Using 'meal' + specific ingredient tag is the most robust free option
+    const imageUrl = `https://loremflickr.com/800/600/meal,${baseMeal.img.replace(' ', ',')}?sig=${id}`;
 
     return {
       id: id,
       title: finalTitle,
-      time: type === "Fast" ? "12 min" : type === "Healthy" ? "22 min" : "55 min",
-      cal: type === "Fast" ? "340 kcal" : type === "Healthy" ? "410 kcal" : "720 kcal",
-      image: `https://loremflickr.com/800/600/food,${baseMeal.img}/all?sig=${id}`,
+      time: type === "Chef's Selection" ? "25 min" : type === "Seasonal" ? "35 min" : "55 min",
+      cal: type === "Chef's Selection" ? "420 kcal" : type === "Seasonal" ? "580 kcal" : "850 kcal",
       badge: type,
       nutrition: {
-        protein: type === "Hearty" ? "42g" : "24g",
-        carbs: type === "Fast" ? "32g" : "48g",
-        fats: type === "Healthy" ? "14g" : "26g"
+        protein: type === "Signature" ? "48g" : "32g",
+        carbs: type === "Chef's Selection" ? "24g" : "45g",
+        fats: type === "Seasonal" ? "22g" : "36g"
       },
       ingredients: baseMeal.ingredients,
-      instructions: baseMeal.instructions
+      instructions: baseMeal.instructions,
+      image: imageUrl
     };
   });
 }
@@ -235,6 +384,7 @@ function renderRecipes(listData) {
     <div class="recipe-card" onclick="handleRecipeClick(${JSON.stringify(r).replace(/"/g, '&quot;')})">
       <div class="recipe-image" style="background-image: url('${r.image}')">
         <div class="recipe-badge">${r.badge}</div>
+        <div class="tap-overlay"><i class="fas fa-lock"></i> Tap to Unlock</div>
       </div>
       <div class="recipe-content">
         <h3>${r.title}</h3>
@@ -792,34 +942,20 @@ function generateRecipesFromScan() {
 }
 
 
+// 11. UI Helpers
 function updatePremiumUI() {
-  const subBtn = document.getElementById('btn-subscribe');
-  const cancelBtn = document.getElementById('btn-cancel-sub');
+  // Premium features removed. App is now Ad-Supported only.
+  // This function is kept as a stub to prevent "undefined" errors in other parts of the app.
+  console.log("App running in Ad-Supported Mode");
+
   const homeBanner = document.querySelector('.banner');
   const allAdHints = document.querySelectorAll('.ad-hint');
   const scanAdHint = document.getElementById('scan-ad-hint');
 
-  if (appState.isPremium) {
-    if (subBtn) {
-      subBtn.innerHTML = '<i class="fas fa-check-circle"></i> Plus Active';
-      subBtn.style.background = "var(--glass)";
-      subBtn.style.border = "1px solid var(--primary)";
-      subBtn.disabled = true;
-    }
-    if (cancelBtn) cancelBtn.style.display = 'block';
-    if (homeBanner) homeBanner.style.display = 'none';
-    allAdHints.forEach(hint => hint.style.display = 'none');
-    if (scanAdHint) scanAdHint.style.display = 'none';
-  } else {
-    if (subBtn) {
-      subBtn.innerText = 'Subscribe Now';
-      subBtn.style.background = "linear-gradient(135deg, #f59e0b, #ef4444)";
-      subBtn.disabled = false;
-    }
-    if (cancelBtn) cancelBtn.style.display = 'none';
-    if (homeBanner) homeBanner.style.display = 'block';
-    allAdHints.forEach(hint => hint.style.display = 'block');
-  }
+  // Always show ads UI
+  if (homeBanner) homeBanner.style.display = 'block';
+  if (allAdHints) allAdHints.forEach(hint => hint.style.display = 'block');
+  if (scanAdHint) scanAdHint.style.display = 'none'; // Only show when needed
 }
 
 function showToast(msg) {

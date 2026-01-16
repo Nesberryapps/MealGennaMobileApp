@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>MealGenna | AI Meal Planning</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="health.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -74,7 +75,17 @@
                 <p class="ad-hint"><i class="fas fa-play-circle"></i> Watch 1 ad to generate</p>
             </div>
 
-            <!-- Premium Banner Hidden for now -->
+            <!-- Welcome Banner -->
+            <div class="banner"
+                style="background: linear-gradient(135deg, var(--primary-dark), var(--primary)); border: 1px solid var(--glass-border); padding: 20px; border-radius: 20px; margin-bottom: 24px; position: relative; overflow: hidden;">
+                <div style="position: relative; z-index: 2;">
+                    <h2 style="font-size: 20px; margin-bottom: 8px; font-weight: 600;">Welcome to MealGenna</h2>
+                    <p style="font-size: 14px; opacity: 0.9; margin-bottom: 0;">Enjoy unlimited AI meal planning,
+                        supported by short ads.</p>
+                </div>
+                <i class="fas fa-utensils"
+                    style="position: absolute; right: -10px; bottom: -20px; font-size: 80px; opacity: 0.1;"></i>
+            </div>
 
             <div class="section-title">
                 <h2>Meal Ideas</h2>
@@ -136,10 +147,51 @@
             <p class="ad-hint"><i class="fas fa-play-circle"></i> Watch 2 ads to unlock all days</p>
         </section>
 
-        <!-- Premium/IAP Screen -->
-        <!-- Subscription screens removed temporarily for build stability -->
+        <!-- AI Health Consultant Screen -->
+        <section id="screen-health" class="screen">
+            <h1>Health Consultant</h1>
+            <p class="subtitle">AI-powered nutrition blueprints for your health goals</p>
 
-        <!-- Subscription screens removed temporarily for build stability -->
+            <div class="health-input-card">
+                <p style="font-size: 14px; margin-bottom: 12px; opacity: 0.8;">Describe your situation (e.g., "I have
+                    high blood pressure and need a low-sodium plan" or "I'm training for a triathlon"):</p>
+                <textarea id="health-description" placeholder="Type your health goal or condition here..."></textarea>
+
+                <div
+                    style="margin-top: 15px; font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-secondary);">
+                    Suggested Profiles:</div>
+                <div class="chip-container" id="health-chips" style="margin-top: 8px;">
+                    <div class="chip" onclick="setHealthGoal('Bodybuilding / High Protein')">Bodybuilding</div>
+                    <div class="chip" onclick="setHealthGoal('Diabetic / Low Glycemic')">Diabetic</div>
+                    <div class="chip" onclick="setHealthGoal('High Blood Pressure / Low Sodium')">HBP Care</div>
+                    <div class="chip" onclick="setHealthGoal('Post-Surgery Recovery / Liquid')">Recovery</div>
+                    <div class="chip" onclick="setHealthGoal('Weight Loss / Low Calorie')">Weight Loss</div>
+                </div>
+
+                <button class="btn-primary" onclick="generateHealthReport()" id="btn-health-gen"
+                    style="margin-top: 20px; width: 100%;">
+                    <i class="fas fa-stethoscope"></i> Analysis & Suggestions
+                </button>
+            </div>
+
+            <div id="health-report-container" style="display: none; margin-top: 25px; padding-bottom: 40px;">
+                <div class="section-title">
+                    <h2>AI Nutrition Report</h2>
+                </div>
+                <div id="health-report-content" class="report-card">
+                    <!-- Report content will appear here -->
+                </div>
+
+                <div id="health-meals-section" style="margin-top: 25px; display: none;">
+                    <div class="section-title">
+                        <h2>Personalized Specialist Meals</h2>
+                    </div>
+                    <div id="health-meals-list" class="quick-ideas-list">
+                        <!-- Meal cards will be injected here -->
+                    </div>
+                </div>
+            </div>
+        </section>
 
         <!-- About Us Screen -->
         <section id="screen-about" class="screen">
@@ -169,10 +221,9 @@
                 <p>Last Updated: January 14, 2026</p>
                 <h4>1. Acceptance of Terms</h4>
                 <p>By using MealGenna, you agree to comply with and be bound by these Terms and Conditions.</p>
-                <h4>2. Subscription Services</h4>
-                <p>MealGenna Plus is a monthly subscription service priced at $5.99. Payments are processed through
-                    the
-                    respective App Store accounts.</p>
+                <h4>2. Free Service</h4>
+                <p>MealGenna is a free-to-use application supported by advertisements. No purchase is required to use
+                    the core features.</p>
                 <h4>3. AI Content</h4>
                 <p>Recipes are generated by AI and should be used for informational purposes only. Always verify
                     ingredients for allergies or dietary restrictions.</p>
@@ -192,9 +243,9 @@
                 <p>Last Updated: January 14, 2026</p>
                 <h4>1. Data Collection</h4>
                 <p>We collect minimal data required to provide our services, including scans for ingredient
-                    identification and subscription status.</p>
+                    identification and app usage metrics.</p>
                 <h4>2. Data Usage</h4>
-                <p>Your data is used solely to improve recipe generation and maintain your premium access. We do not
+                <p>Your data is used solely to improve recipe generation and app experience. We do not
                     sell your personal data to third parties.</p>
                 <h4>3. Security</h4>
                 <p>We implement industry-standard security measures to protect your information within the app
@@ -238,6 +289,10 @@
             <a href="#" class="nav-item" onclick="showScreen('screen-planner', this)">
                 <i class="fas fa-calendar-alt"></i>
                 <span>Planner</span>
+            </a>
+            <a href="#" class="nav-item" onclick="showScreen('screen-health', this)">
+                <i class="fas fa-heartbeat"></i>
+                <span>Health</span>
             </a>
             <!-- Plus Tab Hidden -->
         </nav>

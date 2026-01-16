@@ -70,14 +70,22 @@ async function generateAIRecipes(preferences) {
         contextStr += ` IMPORTANT: Use these scanned ingredients as the primary components: ${preferences.scannedIngredients.join(', ')}.`;
       }
 
-      const prompt = `${contextStr}
+      const prompt = `You are a World-Class Executive Chef. Generate 3 unique, high-end, and creative meal ideas for ${preferences.time}. 
+            Cuisine: ${preferences.cuisine}, Diet: ${preferences.diet}.
+            
+            RULES for Titles:
+            - DO NOT simply prefix with the cuisine name (e.g., Avoid "Asian Fusion Pasta").
+            - DO use mouth-watering, specific names (e.g., "Lemongrass Infused Chicken Kababs" or "Truffle Ricotta Agnolotti").
+            - Be bold and gourmet.
+
             For each meal, provide: 
-            1. An appetizing title.
-            2. Cooking time, Calories.
-            3. Macro breakdown (Protein, Carbs, Fats).
-            4. 6 detailed ingredients (must include at least some of the scanned items).
-            5. 4 clear cooking instructions that EXPLICITLY mention the ingredients used.
-            6. A short string of 3 precise, high-quality visual keywords for finding a professional food photo (e.g. "gourmet, roasted, chicken"). Focus on the main ingredient and cooking style.
+            1. A stunning, specific title.
+            2. Cooking time (e.g. "25 min"), Calories (e.g. "450 kcal").
+            3. Macro values (e.g. "32g", "45g", "12g").
+            4. 6 gourmet ingredients.
+            5. 4 professional cooking steps.
+            6. Precisely 2 visual keywords that describe ONLY the food itself for a photo search (e.g. "roasted,chicken" or "sushi,roll"). NO broad words like 'fusion', 'asian', or 'delicious'.
+            
             Return ONLY a valid JSON array of 3 objects with keys: title, time, cal, protein, carbs, fats, ingredients, instructions, image_keywords.`;
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
@@ -103,7 +111,7 @@ async function generateAIRecipes(preferences) {
         nutrition: { protein: m.protein, carbs: m.carbs, fats: m.fats },
         ingredients: m.ingredients,
         instructions: m.instructions,
-        image: `https://loremflickr.com/800/600/food,${m.image_keywords ? m.image_keywords.replace(/ /g, ',') : 'meal'},plate/all` // Improved matching with 'all' filter
+        image: `https://loremflickr.com/800/600/food,${m.image_keywords ? m.image_keywords.toLowerCase().replace(/[^a-z,]/g, '') : 'meal'}/all`
       }));
     } catch (error) {
       console.error("Gemini API Error:", error);
@@ -111,87 +119,49 @@ async function generateAIRecipes(preferences) {
     }
   }
 
-  // --- HIGH-QUALITY MOCK FALLBACK ---
+  // --- REFINED MOCK FALLBACK ---
   const types = ["Fast", "Healthy", "Hearty"];
   const mockLibrary = {
     Breakfast: [
       {
-        title: "Sizzling Avocado Shakshuka",
+        title: "Truffle Infused Avocado Royale",
+        img: "avocado,toast",
+        ingredients: ["2 slices Sourdough", "1 Ripe Avocado", "Truffle Oil", "Poached Egg", "Microgreens", "Sea Salt"],
+        instructions: ["Toast the sourdough until golden and crisp.", "Mash avocado with a hint of truffle oil and salt.", "Spread over toast and top with a perfectly poached egg.", "Garnish with microgreens for a royal finish."]
+      },
+      {
+        title: "Mediterranean Shakshuka Sizzle",
         img: "shakshuka",
-        ingredients: ["2 Eggs", "1 Ripe Avocado", "1 cup Tomato Puree", "1 tsp Cumin", "Fresh Cilantro", "Chili Flakes"],
-        instructions: ["Hean the tomato puree in a pan with cumin and chili flakes.", "Crack the eggs into the sauce and simmer until whites are set.", "Top with sliced avocado and fresh cilantro.", "Serve immediately while sizzling."]
+        ingredients: ["2 Eggs", "Bell Peppers", "Tomato Puree", "Feta Cheese", "Harissa", "Fresh Parsley"],
+        instructions: ["Sauté bell peppers with harissa until tender.", "Pour in tomato puree and simmer on medium heat.", "Crack eggs into the sauce and cook until whites set.", "Finish with crumbled feta and fresh parsley."]
       },
       {
-        title: "Golden Honey Nut Oats",
-        img: "oatmeal",
-        ingredients: ["1 cup Rolled Oats", "2 cups Almond Milk", "1 tbsp Honey", "Walnuts", "Cinnamon", "Blueberries"],
-        instructions: ["Simmer oats in almond milk over medium heat until creamy.", "Stir in honey and a pinch of cinnamon.", "Top with toasted walnuts and fresh blueberries.", "Serve warm for a golden start."]
-      },
-      {
-        title: "Zesty Morning Protein Wrap",
-        img: "burrito",
-        ingredients: ["1 Whole Wheat Tortilla", "2 Scrambled Eggs", "Black Beans", "Salsa", "Spinach", "Hot Sauce"],
-        instructions: ["Layer scrambled eggs and black beans onto the tortilla.", "Add fresh spinach and a generous spoonful of salsa.", "Drizzle with hot sauce for a zesty kick.", "Roll tightly and sear in a pan for 1 minute."]
+        title: "Golden Honey Almond Oatmeal",
+        img: "oatmeal,berries",
+        ingredients: ["1 cup Steel Cut Oats", "Almond Milk", "Manuka Honey", "Blueberries", "Almonds", "Cinnamon"],
+        instructions: ["Cook oats in almond milk until thick and creamy.", "Stir in a dash of cinnamon and honey.", "Top with toasted almonds and fresh blueberries.", "Drizzle with extra honey before serving."]
       }
     ],
     Lunch: [
       {
-        title: "Zesty Lemon Grilled Chicken",
-        img: "chicken",
-        ingredients: ["6oz Chicken Breast", "1 Lemon", "1 cup Steamed Broccoli", "Garlic Powder", "Olive Oil", "Black Pepper"],
-        instructions: ["Season chicken with garlic powder, lemon juice, and black pepper.", "Grill the chicken breast for 5-6 minutes per side.", "Steam the broccoli until bright green and tender.", "Serve with a final squeeze of fresh lemon and olive oil."]
+        title: "Zesty Pesto Atlantic Salmon",
+        img: "salmon,grilled",
+        ingredients: ["Salmon Fillet", "Fresh Basil Pesto", "Quinoa", "Cherry Tomatoes", "Lemon", "Garlic"],
+        instructions: ["Pan-sear salmon until the skin is perfectly crispy.", "Glaze with a generous layer of basil pesto.", "Serve over a bed of fluffy lemon-garlic quinoa.", "Garnish with roasted cherry tomatoes."]
       },
       {
-        title: "Rustic Mediterranean Bowl",
-        img: "salad",
-        ingredients: ["Chickpeas", "Cucumber", "Cherry Tomatoes", "Feta Cheese", "Kalamata Olives", "Red Wine Vinegar"],
-        instructions: ["Combine chickpeas, diced cucumber, and halved tomatoes in a bowl.", "Toss with red wine vinegar and a splash of olive oil.", "Top with crumbled feta cheese and olives.", "Serve chilled for a rustic mediterranean touch."]
-      },
-      {
-        title: "Express Seafood Fusion Poke",
-        img: "poke",
+        title: "Artisan Mediterranean Poke Bowl",
+        img: "poke,bowl",
         ingredients: ["Fresh Ahi Tuna", "Sushi Rice", "Edamame", "Soy Sauce", "Ginger", "Radish"],
-        instructions: ["Cube the tuna and marinate in soy sauce and grated ginger.", "Place rice in a bowl and top with the marinated tuna.", "Add edamame and thinly sliced radishes.", "Serve immediately for an express fusion meal."]
+        instructions: ["Cube the tuna and marinate in a soy-ginger dressing.", "Assemble rice in a bowl and arrange edamame and radish.", "Place marinated tuna on top.", "Drizzle with a touch of sesame oil."]
       }
     ],
     Dinner: [
       {
-        title: "Classic Herbed Ribeye",
-        img: "steak",
-        ingredients: ["8oz Ribeye Steak", "Fresh Rosemary", "Butter", "Garlic Cloves", "Sea Salt", "Cracked Pepper"],
-        instructions: ["Season ribeye generously with sea salt and cracked pepper.", "Sear in a hot pan, basting with butter, rosemary, and garlic.", "Cook to desired level of doneness (3-4 mins for medium-rare).", "Rest for 5 minutes before slicing and serving."]
-      },
-      {
-        title: "Vitality Pesto Salmon",
-        img: "salmon",
-        ingredients: ["Salmon Fillet", "Basil Pesto", "Asparagus Spears", "Lemon Wedges", "Pine Nuts", "Olive Oil"],
-        instructions: ["Spread a thick layer of basil pesto over the salmon fillet.", "Place on a baking sheet surrounded by oiled asparagus spears.", "Roast at 400°F for 12-15 minutes.", "Top with toasted pine nuts and serve with lemon wedges."]
-      },
-      {
-        title: "Rustic Truffle Mushroom Pasta",
-        img: "pasta",
-        ingredients: ["Pappardelle Pasta", "Wild Mushrooms", "Truffle Oil", "Parmesan Cheese", "Heavy Cream", "Parsley"],
-        instructions: ["Boil the pappardelle pasta in salted water until al dente.", "Sauté mushrooms in a bit of oil until golden.", "Stir in heavy cream and parmesan to create a rustic sauce.", "Toss with pasta and finish with a drizzle of truffle oil."]
-      }
-    ],
-    Snack: [
-      {
-        title: "Pure Greek Yogurt Parfait",
-        img: "yogurt",
-        ingredients: ["Greek Yogurt", "Granola", "Mixed Berries", "Chia Seeds", "Honey", "Mint"],
-        instructions: ["Layer Greek yogurt and granola in a glass or bowl.", "Add a generous helping of fresh mixed berries.", "Sprinkle with chia seeds and a drizzle of honey.", "Garnish with mint and serve chilled."]
-      },
-      {
-        title: "Savory Roasted Hummus",
-        img: "hummus",
-        ingredients: ["Chickpeas", "Tahini", "Garlic", "Lemon Juice", "Paprika", "Olive Oil"],
-        instructions: ["Blend chickpeas, tahini, garlic, and lemon juice until smooth.", "Transfer to a bowl and create a well in the center.", "Drizzle with olive oil and sprinkle with paprika.", "Serve with fresh vegetables or warm pita bread."]
-      },
-      {
-        title: "Express Protein Energy Bites",
-        img: "nuts",
-        ingredients: ["Dates", "Cashews", "Dark Chocolate", "Peanut Butter", "Oats", "Coconut Flakes"],
-        instructions: ["Pulse dates and cashews in a food processor until combined.", "Fold in dark chocolate, peanut butter, and oats.", "Roll into bite-sized balls and coat with coconut flakes.", "Refrigerate for 15 minutes before serving."]
+        title: "Herb Crusted Signature Ribeye",
+        img: "steak,ribeye",
+        ingredients: ["8oz Prime Ribeye", "Fresh Rosemary", "Garlic Butter", "Thyme", "Asparagus", "Sea Salt"],
+        instructions: ["Season ribeye and sear in a cast-iron skillet.", "Baste continuously with garlic butter and fresh herbs.", "Grill asparagus alongside the steak until charred.", "Rest for 5 minutes for maximum juiciness."]
       }
     ]
   };
@@ -200,15 +170,22 @@ async function generateAIRecipes(preferences) {
 
   return types.map((type, i) => {
     const id = Date.now() + i;
-    const baseMeal = selectedPool[i];
-    const finalTitle = `${preferences.cuisine !== 'Any' ? preferences.cuisine : ''} ${baseMeal.title}`;
+    const baseMeal = selectedPool[i % selectedPool.length];
+
+    // Modern logic: create a gourmet fusion title
+    let finalTitle = baseMeal.title;
+    if (preferences.cuisine !== 'Any') {
+      const culinaryStyle = ["Artisan", "Signature", "Heritage", "Rustic"];
+      const prefix = culinaryStyle[i % culinaryStyle.length];
+      finalTitle = `${prefix} ${preferences.cuisine} ${baseMeal.title}`;
+    }
 
     return {
       id: id,
-      title: finalTitle.trim(),
+      title: finalTitle,
       time: type === "Fast" ? "12 min" : type === "Healthy" ? "22 min" : "55 min",
       cal: type === "Fast" ? "340 kcal" : type === "Healthy" ? "410 kcal" : "720 kcal",
-      image: `https://loremflickr.com/800/600/food,${baseMeal.img},dish/all?sig=${id}`,
+      image: `https://loremflickr.com/800/600/food,${baseMeal.img}/all?sig=${id}`,
       badge: type,
       nutrition: {
         protein: type === "Hearty" ? "42g" : "24g",
@@ -232,13 +209,13 @@ async function generateFromPreferences() {
   // Bot Protection
   if (typeof grecaptcha !== 'undefined' && grecaptcha.enterprise) {
     try {
-      // Check if we are in a valid domain context before executing (skips localhost/file mostly)
-      if (window.location.protocol.startsWith('http') || window.location.protocol.startsWith('https')) {
+      // ONLY execute reCAPTCHA if running on a real web domain (not file:// or local app without whitelist)
+      if (window.location.protocol.startsWith('http')) {
         const token = await grecaptcha.enterprise.execute('6Lf9-EssAAAAAJ6_ETtZ6StCfuEU6VZCHM4EmoZI', { action: 'generate_meal' });
         console.log("reCAPTCHA Token generated");
       }
     } catch (e) {
-      console.warn("reCAPTCHA silent fail (expected on non-whitelisted domains):", e);
+      console.warn("reCAPTCHA silent fail (prevented startup block):", e);
     }
   }
 

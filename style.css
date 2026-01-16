@@ -22,6 +22,12 @@
     -webkit-tap-highlight-color: transparent;
 }
 
+/* Hide reCAPTCHA Badge & Error UI */
+.grecaptcha-badge {
+    display: none !important;
+    visibility: hidden !important;
+}
+
 body {
     background-color: var(--background);
     color: var(--text-primary);
@@ -47,27 +53,38 @@ body {
     box-shadow: 0 50px 100px -20px rgba(0, 0, 0, 0.5);
 }
 
-/* Glassmorphism Background Elements */
+/* Enhanced Background Blobs */
 .bg-blob {
     position: absolute;
-    width: 300px;
-    height: 300px;
-    filter: blur(80px);
+    width: 400px;
+    height: 400px;
+    filter: blur(100px);
     z-index: 0;
-    opacity: 0.4;
+    opacity: 0.5;
     pointer-events: none;
+    animation: pulse 10s infinite alternate;
 }
 
 .blob-1 {
-    top: -100px;
-    right: -100px;
-    background: var(--primary);
+    top: -150px;
+    right: -150px;
+    background: radial-gradient(circle, var(--primary), #065f46);
 }
 
 .blob-2 {
-    bottom: -100px;
-    left: -100px;
-    background: var(--accent);
+    bottom: -150px;
+    left: -150px;
+    background: radial-gradient(circle, var(--accent), #3730a3);
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1) translate(0, 0);
+    }
+
+    100% {
+        transform: scale(1.2) translate(20px, 20px);
+    }
 }
 
 /* Main Navigation */
@@ -97,6 +114,10 @@ body {
 
 .nav-item.active {
     color: var(--primary);
+}
+
+.nav-item:active {
+    transform: scale(0.9);
 }
 
 .nav-item i {
@@ -132,15 +153,21 @@ body {
 
 /* Typography & Components */
 h1 {
-    font-size: 28px;
-    font-weight: 700;
+    font-size: 32px;
+    font-weight: 800;
     margin-bottom: 8px;
+    background: linear-gradient(to right, #ffffff, #94a3b8);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.5px;
 }
 
 .subtitle {
     color: var(--text-secondary);
-    font-size: 14px;
+    font-size: 15px;
     margin-bottom: 24px;
+    font-weight: 400;
 }
 
 .section-title {
@@ -162,63 +189,86 @@ h1 {
     font-weight: 500;
 }
 
-/* Recipe Card */
+/* Recipe Card - Re-imagined for Premium Feel */
 .recipe-card {
-    background: var(--glass);
-    backdrop-filter: blur(10px);
-    border: 1px solid var(--glass-border);
-    border-radius: 24px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 28px;
     overflow: hidden;
-    margin-bottom: 16px;
-    transition: transform 0.2s ease;
+    margin-bottom: 20px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.3);
 }
 
 .recipe-card:active {
-    transform: scale(0.98);
+    transform: scale(0.97);
+    background: rgba(255, 255, 255, 0.08);
 }
 
 .recipe-image {
     width: 100%;
-    height: 180px;
+    height: 200px;
     background-size: cover;
     background-position: center;
     position: relative;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Gradient Overlay for Titles */
+.recipe-image::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 60%;
+    background: linear-gradient(to top, rgba(15, 23, 42, 0.8), transparent);
 }
 
 .recipe-badge {
     position: absolute;
-    top: 12px;
-    right: 12px;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(10px);
-    padding: 4px 12px;
+    top: 14px;
+    right: 14px;
+    background: rgba(16, 185, 129, 0.85);
+    /* Use primary color */
+    backdrop-filter: blur(8px);
+    padding: 5px 14px;
     border-radius: 100px;
-    font-size: 11px;
-    font-weight: 600;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
     color: white;
+    z-index: 2;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
 }
 
 .recipe-content {
-    padding: 16px;
+    padding: 18px 20px;
+    position: relative;
 }
 
 .recipe-content h3 {
-    font-size: 16px;
-    margin-bottom: 4px;
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: var(--text-primary);
+    line-height: 1.3;
 }
 
 .recipe-meta {
     display: flex;
-    gap: 12px;
+    gap: 15px;
     font-size: 12px;
     color: var(--text-secondary);
+    font-weight: 500;
 }
 
-.recipe-meta {
-    display: flex;
-    gap: 12px;
-    font-size: 12px;
-    color: var(--text-secondary);
+.recipe-meta span i {
+    margin-right: 4px;
+    color: var(--primary);
 }
 
 /* Preferences Chips */

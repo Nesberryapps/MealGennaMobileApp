@@ -167,6 +167,11 @@ jobs:
           echo "Detected UUID: $PROVISION_UUID"
           echo "Detected Name: $PROVISION_NAME"
 
+      - name: Clear Xcode Cache
+        run: |
+          rm -rf ~/Library/Developer/Xcode/DerivedData
+          mkdir -p output
+
       - name: Build iOS Archive (.archive)
         run: |
           xcodebuild archive -workspace ios/App/App.xcworkspace \

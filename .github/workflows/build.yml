@@ -22,6 +22,8 @@ jobs:
 
       - name: Build Web Assets
         run: npm run build
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - name: Capacitor Add/Sync Android
         run: |
@@ -61,6 +63,8 @@ jobs:
 
       - name: Build Web Assets
         run: npm run build
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - name: Capacitor Add/Sync iOS
         run: |

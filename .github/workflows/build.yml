@@ -80,6 +80,9 @@ jobs:
           rm -f Podfile.lock
           rm -rf App.xcworkspace
           
+          echo "Clearing Local Pod Cache..."
+          pod cache clean --all
+          
           echo "Installing Pods..."
           pod repo update
           pod install

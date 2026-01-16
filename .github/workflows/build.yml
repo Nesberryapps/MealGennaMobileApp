@@ -193,7 +193,33 @@ jobs:
                      -exportPath output \
                      -allowProvisioningUpdates
 
+                     -allowProvisioningUpdates
+
+      - name: Upload to TestFlight
+        env:
+          API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+          API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          # 1. Setup API Key for altool
+          mkdir -p ~/private_keys
+          echo "$API_KEY_CONTENT" > ~/private_keys/AuthKey_$API_KEY_ID.p8
+          
+          # 2. Find the IPA file
+          IPA_PATH=$(find output -name "*.ipa" | head -n 1)
+          if [ -z "$IPA_PATH" ]; then
+            echo "No IPA file found to upload!"
+            exit 1
+          fi
+          echo "Uploading $IPA_PATH..."
+          
+          # 3. Upload using xcrun altool
+          # Note: altool expects the key file in specific locations or passed via args.
+          # We'll put it in the default search path (~/private_keys) which altool checks.
+          xcrun altool --upload-app -f "$IPA_PATH" -t ios --apiKey "$API_KEY_ID" --apiIssuer "$ISSUER_ID" --verbose
+
       - name: Upload .ipa Artifact
+        if: always() # Ensure we get the artifact even if upload fails
         uses: actions/upload-artifact@v4
         with:
           name: mealgenna-ios-ipa

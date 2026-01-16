@@ -74,8 +74,6 @@ jobs:
 
       - name: Install Pods
         run: |
-          # Force a stable Xcode version for Capacitor 5 compatibility
-          sudo xcode-select -s /Applications/Xcode_15.4.app
           cd ios/App && pod repo update && pod install && cd ../..
 
       - name: Install Apple Certificate

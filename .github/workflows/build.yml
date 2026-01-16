@@ -169,6 +169,8 @@ jobs:
             <string>manual</string>
             <key>signingCertificate</key>
             <string>Apple Distribution</string>
+            <key>thinning</key>
+            <string>&lt;none&gt;</string>
           </dict>
           </plist>
           EOF
@@ -178,9 +180,9 @@ jobs:
           # This step is now partially handled by the Podfile hook, but let's keep it as extra safety
           find ios/App/Pods -name "*.xcodeproj" -exec sed -i '' 's/CODE_SIGNING_ALLOWED = YES/CODE_SIGNING_ALLOWED = NO/g' {}/project.pbxproj \; || true
 
-      - name: Build iOS Archive (.ipa)
+      - name: Build iOS Archive (.archive)
         run: |
-          xcodebuild -workspace ios/App/App.xcworkspace \
+          xcodebuild archive -workspace ios/App/App.xcworkspace \
                      -scheme App \
                      -sdk iphoneos \
                      -configuration Release \
@@ -188,8 +190,9 @@ jobs:
                      DEVELOPMENT_TEAM=${{ secrets.APPLE_DEVELOPMENT_TEAM_ID }} \
                      CODE_SIGN_STYLE=Manual \
                      CODE_SIGN_IDENTITY="Apple Distribution" \
-                     PROVISIONING_PROFILE_SPECIFIER=$PROVISION_UUID \
-                     archive
+                     PROVISIONING_PROFILE=$PROVISION_UUID \
+                     IPHONEOS_DEPLOYMENT_TARGET=13.0 \
+                     -quiet
                      
           xcodebuild -exportArchive \
                      -archivePath App.xcarchive \

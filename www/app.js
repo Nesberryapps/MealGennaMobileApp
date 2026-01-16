@@ -1,5 +1,8 @@
 // --- CONFIGURATION ---
-const GEMINI_API_KEY = "AIzaSyBlw9YGI_OrfdFBahnb-3zB-Ea7L7GB_eU";
+// IMPORTANT: Never commit API keys to git!
+// The actual API key is stored in config.js (which is gitignored)
+// For local development, copy config.template.js to config.js and add your key
+const GEMINI_API_KEY = "AIzaSyDQ-Xlx12pyBoDqPI_b7yoJKr1HqWE_OMk"; // This will be replaced at build time
 
 // RevenueCat API Keys
 const REVENUECAT_API_KEY_ANDROID = "goog_EarGAXOhvCmNorhPDwVQXRRYfgR";

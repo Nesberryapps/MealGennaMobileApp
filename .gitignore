@@ -1,1 +1,9 @@
 node_modules
+.env
+.env.local
+*.p8
+*.p12
+google-services.json
+GoogleService-Info.plist
+config.js
+secrets.js

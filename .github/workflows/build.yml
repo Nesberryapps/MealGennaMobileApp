@@ -202,11 +202,17 @@ jobs:
           # 1. Setup API Key for altool/transporter
           mkdir -p ~/private_keys
           
-          # Write the API key content to file (ensure proper formatting)
-          echo "$API_KEY_CONTENT" > ~/private_keys/AuthKey_${API_KEY_ID}.p8
+          # Write the API key content to file (preserve exact formatting)
+          # The secret should contain the raw .p8 file content including header/footer
+          printf "%s" "$API_KEY_CONTENT" > ~/private_keys/AuthKey_${API_KEY_ID}.p8
           
-          # Verify the key file was created
+          # Verify the key file was created and check format
+          echo "=== Key file created ==="
           ls -la ~/private_keys/
+          echo "=== First few lines of key file ==="
+          head -n 3 ~/private_keys/AuthKey_${API_KEY_ID}.p8
+          echo "=== Last few lines of key file ==="
+          tail -n 3 ~/private_keys/AuthKey_${API_KEY_ID}.p8
           
           # 2. Find the IPA file
           IPA_PATH=$(find output -name "*.ipa" | head -n 1)

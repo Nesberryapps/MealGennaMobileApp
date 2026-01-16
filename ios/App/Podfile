@@ -11,10 +11,9 @@ def capacitor_pods
   pod 'CapacitorFilesystem', :path => '../../node_modules/@capacitor/filesystem'
   pod 'CapacitorShare', :path => '../../node_modules/@capacitor/share'
 
-  # THE CRITICAL FIX: Pinning Google SDKs to versions that still support 'UMPConsentStatus'
-  # This resolves the fatal compilation error in the AdMob plugin
-  pod 'Google-Mobile-Ads-SDK', '10.12.0'
-  pod 'GoogleUserMessagingPlatform', '2.0.1'
+  # Removed pinned versions to allow plugin to resolve latest compatible SDKs
+  # pod 'Google-Mobile-Ads-SDK', '10.12.0'
+  # pod 'GoogleUserMessagingPlatform', '2.0.1'
 end
 
 target 'App' do

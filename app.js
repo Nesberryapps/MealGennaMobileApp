@@ -4,10 +4,6 @@
 // For local development, copy config.template.js to config.js and add your key
 const GEMINI_API_KEY = "PASTE_YOUR_GEMINI_API_KEY_HERE"; // This will be replaced at build time
 
-// RevenueCat API Keys
-const REVENUECAT_API_KEY_ANDROID = "goog_EarGAXOhvCmNorhPDwVQXRRYfgR";
-const REVENUECAT_API_KEY_IOS = "appl_HgJWZQBHyaAcXNhibMlDiXzBzKa";
-
 // AdMob Unit IDs
 const ADMOB_AD_UNIT_ID_ANDROID = "ca-app-pub-6191158195654090/2827553869";
 const ADMOB_AD_UNIT_ID_IOS = "ca-app-pub-6191158195654090/7842725756";
@@ -795,170 +791,6 @@ function generateRecipesFromScan() {
   }
 }
 
-// 11. Subscription System (RevenueCat Integration)
-async function initializeRevenueCat() {
-  try {
-    if (!isCapacitor()) {
-      console.log("Not running in Capacitor - RevenueCat skipped");
-      return;
-    }
-
-    // Safety check for Plugins object
-    if (!window.Capacitor || !window.Capacitor.Plugins) return;
-
-    const { Purchases } = window.Capacitor.Plugins;
-    if (!Purchases) {
-      console.warn("RevenueCat not available, using fallback");
-      return;
-    }
-
-    // Detect platform and configure with appropriate API key
-    const platform = window.Capacitor.getPlatform();
-    const apiKey = platform === 'ios' ? REVENUECAT_API_KEY_IOS : REVENUECAT_API_KEY_ANDROID;
-
-    await Purchases.configure({ apiKey });
-    console.log("RevenueCat initialized successfully");
-
-    // Check current subscription status
-    await checkSubscriptionStatus();
-  } catch (error) {
-    console.error("RevenueCat initialization error:", error);
-  }
-}
-
-async function checkSubscriptionStatus() {
-  try {
-    if (!isCapacitor() || !window.Capacitor.Plugins) return;
-    const { Purchases } = window.Capacitor.Plugins;
-    if (!Purchases) return;
-
-    const { customerInfo } = await Purchases.getCustomerInfo();
-
-    // Check if user has active entitlement (RevenueCat uses "entitlements" to manage access)
-    const isPremium = customerInfo.entitlements.active['premium'] !== undefined;
-
-    if (isPremium !== appState.isPremium) {
-      appState.isPremium = isPremium;
-      updatePremiumUI();
-      if (isPremium) {
-        showToast("MealGenna Plus Active!");
-      }
-    }
-  } catch (error) {
-    console.error("Error checking subscription status:", error);
-  }
-}
-
-async function purchasePremium() {
-  try {
-    if (!isCapacitor() || !window.Capacitor.Plugins) {
-      // Fallback for testing/web
-      showToast("Web Mode: Upgraded to Premium (Mock)");
-      appState.isPremium = true;
-      updatePremiumUI();
-      return;
-    }
-
-    const { Purchases } = window.Capacitor.Plugins;
-    if (!Purchases) {
-      // Fallback for device without configured store
-      showToast("Store not available. Using demo mode.");
-      appState.isPremium = true;
-      updatePremiumUI();
-      return;
-    }
-
-    showToast("Loading subscription options...");
-
-    // Get available offerings from RevenueCat
-    const { offerings } = await Purchases.getOfferings();
-
-    if (!offerings.current) {
-      showToast("No subscription plans available.");
-      return;
-    }
-
-    // Get the monthly package (you should configure this in RevenueCat dashboard)
-    const monthlyPackage = offerings.current.availablePackages.find(
-      pkg => pkg.identifier === '$rc_monthly' || pkg.packageType === 'MONTHLY'
-    );
-
-    if (!monthlyPackage) {
-      showToast("Monthly plan not found.");
-      return;
-    }
-
-    showToast("Processing purchase...");
-
-    // Make the purchase
-    const { customerInfo } = await Purchases.purchasePackage({ aPackage: monthlyPackage });
-
-    // Check if the purchase was successful
-    if (customerInfo.entitlements.active['premium']) {
-      appState.isPremium = true;
-      updatePremiumUI();
-      showToast("Welcome to MealGenna Plus! 🎉");
-    } else {
-      showToast("Purchase completed but premium not activated. Please contact support.");
-    }
-
-  } catch (error) {
-    console.error("Purchase error:", error);
-
-    if (error.code === 'PURCHASE_CANCELLED') {
-      showToast("Purchase cancelled.");
-    } else {
-      showToast("Purchase failed. Please try again.");
-    }
-  }
-}
-
-async function cancelSubscription() {
-  // Note: RevenueCat doesn't handle cancellation directly - users must cancel through their platform
-  const platform = window.Capacitor.getPlatform();
-
-  let message = "To cancel your subscription:\n\n";
-
-  if (platform === 'ios') {
-    message += "1. Open Settings on your iPhone\n";
-    message += "2. Tap your name at the top\n";
-    message += "3. Tap 'Subscriptions'\n";
-    message += "4. Select MealGenna Plus\n";
-    message += "5. Tap 'Cancel Subscription'";
-  } else {
-    message += "1. Open Google Play Store\n";
-    message += "2. Tap Menu → Subscriptions\n";
-    message += "3. Select MealGenna Plus\n";
-    message += "4. Tap 'Cancel subscription'";
-  }
-
-  alert(message);
-}
-
-async function restorePurchases() {
-  try {
-    const { Purchases } = window.Capacitor.Plugins;
-    if (!Purchases) {
-      showToast("Store not available.");
-      return;
-    }
-
-    showToast("Restoring purchases...");
-
-    const { customerInfo } = await Purchases.restorePurchases();
-
-    if (customerInfo.entitlements.active['premium']) {
-      appState.isPremium = true;
-      updatePremiumUI();
-      showToast("MealGenna Plus restored! 🎉");
-    } else {
-      showToast("No active subscription found.");
-    }
-  } catch (error) {
-    console.error("Restore error:", error);
-    showToast("Failed to restore purchases. Please try again.");
-  }
-}
 
 function updatePremiumUI() {
   const subBtn = document.getElementById('btn-subscribe');
@@ -1007,7 +839,6 @@ async function startApp() {
 
     // Critical Plugin Inits (wrapped in try/catch internally)
     if (isCapacitor()) {
-      await initializeRevenueCat();
       await initializeAdMob();
       await initNotifications();
     }

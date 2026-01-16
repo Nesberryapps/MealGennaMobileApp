@@ -190,8 +190,9 @@ jobs:
                      DEVELOPMENT_TEAM=${{ secrets.APPLE_DEVELOPMENT_TEAM_ID }} \
                      CODE_SIGN_STYLE=Manual \
                      CODE_SIGN_IDENTITY="Apple Distribution" \
-                     PROVISIONING_PROFILE=$PROVISION_UUID \
-                     IPHONEOS_DEPLOYMENT_TARGET=13.0
+                     PROVISIONING_PROFILE_SPECIFIER=$PROVISION_UUID \
+                     IPHONEOS_DEPLOYMENT_TARGET=13.0 \
+                     -allowProvisioningUpdates
                      
           xcodebuild -exportArchive \
                      -archivePath App.xcarchive \

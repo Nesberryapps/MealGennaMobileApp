@@ -72,9 +72,18 @@ jobs:
           npx cap sync ios
           # Fix Pods signing safely
 
-      - name: Install Pods
+      - name: Clean and Install Pods
         run: |
-          cd ios/App && pod repo update && pod install && cd ../..
+          cd ios/App
+          echo "Performing Clean Slate cleanup..."
+          rm -rf Pods
+          rm -f Podfile.lock
+          rm -rf App.xcworkspace
+          
+          echo "Installing Pods..."
+          pod repo update
+          pod install
+          cd ../..
 
       - name: Install Apple Certificate
         shell: python

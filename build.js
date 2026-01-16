@@ -87,4 +87,16 @@ if (fs.existsSync(privacyDir)) {
     copyRecursive(privacyDir, wwwPrivacyDir);
 }
 
+// Copy other legal directories
+['about', 'terms', 'contact'].forEach(dir => {
+    const src = path.join(__dirname, dir);
+    const dest = path.join(wwwDir, dir);
+    if (fs.existsSync(src)) {
+        if (!fs.existsSync(dest)) {
+            fs.mkdirSync(dest, { recursive: true });
+        }
+        copyRecursive(src, dest);
+    }
+});
+
 console.log('✓ Build complete! Files copied to www/');

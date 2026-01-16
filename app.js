@@ -1021,30 +1021,40 @@ function showToast(msg) {
 }
 
 // 12. Initialization
-document.addEventListener('DOMContentLoaded', () => {
-  updateGreeting();
-  renderPlanner();
-  updatePremiumUI();
+async function startApp() {
+  try {
+    console.log("Starting MealGenna App...");
+    updateGreeting();
+    renderPlanner();
+    updatePremiumUI();
 
-  // Initialize RevenueCat
-  initializeRevenueCat();
+    // Critical Plugin Inits (wrapped in try/catch internally)
+    if (isCapacitor()) {
+      await initializeRevenueCat();
+      await initializeAdMob();
+      await initNotifications();
+    }
 
-  // Initialize AdMob
-  initializeAdMob();
+    // Default initial ideas (non-blocking)
+    generateAIRecipes({ time: "Dinner", diet: "None", cuisine: "Any" })
+      .then(res => renderRecipes(res))
+      .catch(e => console.error("Initial recipe gen failed:", e));
 
-  // Initialize Notifications
-  initNotifications();
+  } catch (error) {
+    console.error("Critical App Start Error:", error);
+    // Even if something fails, try to show the UI
+    updatePremiumUI();
+  }
+}
 
-  // Default initial ideas
-  generateAIRecipes({ time: "Dinner", diet: "None", cuisine: "Any" }).then(res => renderRecipes(res));
-});
+document.addEventListener('DOMContentLoaded', startApp);
 
 // --- NOTIFICATION SYSTEM ---
 async function initNotifications() {
   try {
-    if (!isCapacitor() || !window.Capacitor.Plugins) return;
-
-    const { LocalNotifications } = Capacitor.Plugins;
+    if (!isCapacitor()) return;
+    const Plugins = window.Capacitor.Plugins;
+    const LocalNotifications = Plugins.LocalNotifications;
     if (!LocalNotifications) return;
 
     const perm = await LocalNotifications.requestPermissions();

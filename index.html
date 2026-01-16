@@ -11,31 +11,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    <!-- Google AdSense -->
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6191158195654090"
-        crossorigin="anonymous"></script>
-
-    <style>
-        .grecaptcha-badge {
-            visibility: hidden;
-        }
-    </style>
-
-    <!-- Google Analytics -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-BFXTRD1S6M"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag() { dataLayer.push(arguments); }
-        gtag('js', new Date());
-        gtag('config', 'G-BFXTRD1S6M');
-    </script>
-
-    <!-- reCAPTCHA Enterprise -->
-    <script
-        src="https://www.google.com/recaptcha/enterprise.js?render=6Lf9-EssAAAAAJ6_ETtZ6StCfuEU6VZCHM4EmoZI"></script>
-
-    <!-- jsPDF for Recipe Downloads -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 
 <body>
@@ -411,6 +386,15 @@
     <!-- Toast Notification -->
     <div id="toast" class="toast">Ingredient detected!</div>
 
+    <!-- External Scripts (Deferred to prevent startup blocks) -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6191158195654090"
+        crossorigin="anonymous"></script>
+    <script defer src="https://www.googletagmanager.com/gtag/js?id=G-BFXTRD1S6M"></script>
+    <script defer
+        src="https://www.google.com/recaptcha/enterprise.js?render=6Lf9-EssAAAAAJ6_ETtZ6StCfuEU6VZCHM4EmoZI"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <!-- Main Logic -->
     <script src="app.js"></script>
 </body>
 

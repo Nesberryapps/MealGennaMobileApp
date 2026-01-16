@@ -193,8 +193,6 @@ jobs:
                      -exportPath output \
                      -allowProvisioningUpdates
 
-                     -allowProvisioningUpdates
-
       - name: Upload to TestFlight
         env:
           API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY }}

@@ -175,10 +175,10 @@ jobs:
           </plist>
           EOF
 
-      - name: Disable Pods Signing
+      - name: Debug Provisioning
         run: |
-          # This step is now partially handled by the Podfile hook, but let's keep it as extra safety
-          find ios/App/Pods -name "*.xcodeproj" -exec sed -i '' 's/CODE_SIGNING_ALLOWED = YES/CODE_SIGNING_ALLOWED = NO/g' {}/project.pbxproj \; || true
+          echo "Detected UUID: $PROVISION_UUID"
+          echo "Detected Name: $PROVISION_NAME"
 
       - name: Build iOS Archive (.archive)
         run: |
@@ -191,8 +191,7 @@ jobs:
                      CODE_SIGN_STYLE=Manual \
                      CODE_SIGN_IDENTITY="Apple Distribution" \
                      PROVISIONING_PROFILE=$PROVISION_UUID \
-                     IPHONEOS_DEPLOYMENT_TARGET=13.0 \
-                     -quiet
+                     IPHONEOS_DEPLOYMENT_TARGET=13.0
                      
           xcodebuild -exportArchive \
                      -archivePath App.xcarchive \

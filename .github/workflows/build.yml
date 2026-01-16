@@ -174,11 +174,15 @@ jobs:
 
       - name: Build iOS Archive (.archive)
         run: |
+          # Verify node_modules for Podfile references
+          ls -d node_modules/@capacitor/ios || (echo "ERROR: node_modules missing!" && exit 1)
+          
           xcodebuild archive -workspace ios/App/App.xcworkspace \
                      -scheme App \
                      -sdk iphoneos \
                      -configuration Release \
                      -archivePath App.xcarchive \
+                     -destination 'generic/platform=iOS' \
                      DEVELOPMENT_TEAM=${{ secrets.APPLE_DEVELOPMENT_TEAM_ID }} \
                      CODE_SIGN_STYLE=Manual \
                      CODE_SIGN_IDENTITY="Apple Distribution" \

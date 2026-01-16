@@ -836,6 +836,8 @@ async function startApp() {
     updateGreeting();
     renderPlanner();
     updatePremiumUI();
+    const nav = document.querySelector('.nav-bottom');
+    if (nav) nav.style.display = 'flex';
 
     // Critical Plugin Inits (wrapped in try/catch internally)
     if (isCapacitor()) {

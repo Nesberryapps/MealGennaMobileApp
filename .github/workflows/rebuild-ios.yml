@@ -106,12 +106,14 @@ jobs:
           subprocess.run(['security', 'import', 'release.p12', '-k', 'build.keychain', '-P', pw, '-A', '-t', 'cert', '-f', 'pkcs12'], check=True)
           subprocess.run(['security', 'set-key-partition-list', '-S', 'apple-tool:,apple:,codesign:', '-s', '-k', pw, 'build.keychain'], check=True)
 
-      - name: Decode Provisioning Profile
+      - name: Detect Signing Identity and Provisioning Profile
         shell: python
         env:
           PROVISION_BASE64: ${{ secrets.MOBILEPROVISION_BASE64 }}
         run: |
-          import os, base64, re, plistlib
+          import os, base64, re, plistlib, subprocess
+          
+          # 1. Decode Provisioning Profile
           dest = os.path.expanduser('~/Library/MobileDevice/Provisioning Profiles')
           os.makedirs(dest, exist_ok=True)
           raw_pp = os.environ.get('PROVISION_BASE64', '')
@@ -128,23 +130,74 @@ jobs:
           with open(os.path.join(dest, f"{uuid}.mobileprovision"), 'wb') as f:
               f.write(pp_content)
           
+          print(f"Provisioning Profile UUID: {uuid}")
           with open(os.environ['GITHUB_ENV'], 'a') as f:
               f.write(f"PROVISION_UUID={uuid}\n")
 
-      - name: Build Archive (Verbose)
+          # 2. Detect Signing Identity
+          # List identities and pick the first valid 'Distribution' one
+          try:
+              output = subprocess.check_output(['security', 'find-identity', '-v', '-p', 'codesigning', 'build.keychain'], text=True)
+              print("Available Identities:\n" + output)
+              
+              # Regex to find "String Name"
+              match = re.search(r'"(.*?Distribution.*?)"', output)
+              if match:
+                  identity = match.group(1)
+                  print(f"Detected Identity: {identity}")
+                  with open(os.environ['GITHUB_ENV'], 'a') as f:
+                      f.write(f"jb_IDENTITY={identity}\n")
+              else:
+                  print("WARNING: Could not auto-detect identity. Falling back to 'Apple Distribution'.")
+                  with open(os.environ['GITHUB_ENV'], 'a') as f:
+                      f.write(f"jb_IDENTITY=Apple Distribution\n")
+          except Exception as e:
+              print(f"Error detecting identity: {e}")
+              with open(os.environ['GITHUB_ENV'], 'a') as f:
+                  f.write(f"jb_IDENTITY=Apple Distribution\n")
+
+      - name: Hard-Patch project.pbxproj
         run: |
-          echo "Building with -verbose for debugging..."
+          # We edit the project file directly to inject the UUID and Identity
+          # avoiding CLI args that leak to Pods.
+          
+          PROJECT="ios/App/App.xcodeproj/project.pbxproj"
+          UUID="${{ env.PROVISION_UUID }}"
+          TEAM="${{ secrets.APPLE_DEVELOPMENT_TEAM_ID }}"
+          XZ_IDENTITY="${{ env.jb_IDENTITY }}"
+          
+          echo "Patching $PROJECT with UUID=$UUID, Team=$TEAM, Identity=$XZ_IDENTITY"
+          
+          # 1. Force Manual Signing
+          sed -i '' 's/ProvisioningStyle = Automatic;/ProvisioningStyle = Manual;/g' "$PROJECT"
+          sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' "$PROJECT"
+          
+          # 2. Inject Provisioning Profile SPECIFIER
+          # We look for PRODUCT_BUNDLE_IDENTIFIER match and append the profile setting after it
+          # This works because each target configuration has a bundle identifier line.
+          sed -i '' "s/PRODUCT_BUNDLE_IDENTIFIER = [^;]*;/& PROVISIONING_PROFILE_SPECIFIER = \"$UUID\";/g" "$PROJECT"
+          
+          # 3. Inject Development Team (if missing or empty)
+          # First remove any existing empty ones
+          sed -i '' 's/DEVELOPMENT_TEAM = "";//g' "$PROJECT"
+          # Now inject it everywhere the bundle identifier is (safe bet for the App target)
+          sed -i '' "s/PRODUCT_BUNDLE_IDENTIFIER = [^;]*;/& DEVELOPMENT_TEAM = $TEAM;/g" "$PROJECT"
+          
+          # 4. Inject Identity
+          sed -i '' "s/CODE_SIGN_IDENTITY = \"iPhone Developer\";/CODE_SIGN_IDENTITY = \"$XZ_IDENTITY\";/" "$PROJECT"
+          
+          echo "Patch complete. Checking file..."
+          grep "PROVISIONING_PROFILE_SPECIFIER" "$PROJECT" || echo "WARNING: Profile patch might have failed."
+
+      - name: Build Archive (Clean CLI)
+        run: |
+          echo "Building with project-level settings (no CLI args)..."
           xcodebuild archive -workspace ios/App/App.xcworkspace \
                      -scheme App \
                      -sdk iphoneos \
                      -configuration Release \
                      -archivePath App.xcarchive \
                      -destination 'generic/platform=iOS' \
-                     DEVELOPMENT_TEAM=${{ secrets.APPLE_DEVELOPMENT_TEAM_ID }} \
-                     CODE_SIGN_STYLE=Manual \
-                     CODE_SIGN_IDENTITY="Apple Distribution" \
-                     PROVISIONING_PROFILE_SPECIFIER=$PROVISION_UUID \
-                     IPHONEOS_DEPLOYMENT_TARGET=13.0 \
                      -allowProvisioningUpdates \
                      -verbose
 

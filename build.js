@@ -47,6 +47,9 @@ fs.writeFileSync(path.join(wwwDir, 'app.js'), appContent);
 // Copy other files
 fs.copyFileSync(path.join(__dirname, 'index.html'), path.join(wwwDir, 'index.html'));
 fs.copyFileSync(path.join(__dirname, 'style.css'), path.join(wwwDir, 'style.css'));
+if (fs.existsSync(path.join(__dirname, 'health.css'))) {
+    fs.copyFileSync(path.join(__dirname, 'health.css'), path.join(wwwDir, 'health.css'));
+}
 if (fs.existsSync(path.join(__dirname, 'privacy_policy.html'))) {
     fs.copyFileSync(path.join(__dirname, 'privacy_policy.html'), path.join(wwwDir, 'privacy_policy.html'));
 }

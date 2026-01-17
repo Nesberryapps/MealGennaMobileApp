@@ -1,0 +1,191 @@
+name: Nuclear iOS Rebuild
+on:
+  workflow_dispatch:
+
+jobs:
+  rebuild-and-build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install Dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Build Web Assets
+        run: npm run build
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      - name: DELETE Existing iOS Project
+        run: |
+          echo "WARNING: Deleting ios directory for a fresh start..."
+          rm -rf ios
+
+      - name: Generate Fresh iOS Project
+        run: |
+          npx cap add ios
+          npx cap sync ios
+
+      - name: Inject Configuration into Info.plist
+        shell: python
+        run: |
+          import os
+
+          # Data to inject
+          admob_app_id = "ca-app-pub-6191158195654090~8707594177"
+          tracking_desc = "This identifier will be used to deliver personalized ads to you."
+          camera_desc = "This app uses the camera to scan ingredients for meal analysis."
+
+          plist_path = "ios/App/App/Info.plist"
+
+          with open(plist_path, "r") as f:
+              content = f.read()
+
+          # Injection logic - simple string replacement for key locations
+          # We'll insert our keys right before the closing </dict> of the root dict
+          
+          insert_content = f"""
+          <key>GADApplicationIdentifier</key>
+          <string>{admob_app_id}</string>
+          <key>NSUserTrackingUsageDescription</key>
+          <string>{tracking_desc}</string>
+          <key>NSCameraUsageDescription</key>
+          <string>{camera_desc}</string>
+          <key>SKAdNetworkItems</key>
+          <array>
+            <dict>
+              <key>SKAdNetworkIdentifier</key>
+              <string>cstr6suwn9.skadnetwork</string>
+            </dict>
+          </array>
+          """
+
+          # Find the last </dict> and </plist>
+          # A standard Info.plist ends with </dict>\n</plist>
+          # We will replace the last occurrence of </dict> 
+          
+          if "</dict>\n</plist>" in content:
+             new_content = content.replace("</dict>\n</plist>", insert_content + "</dict>\n</plist>")
+             with open(plist_path, "w") as f:
+                 f.write(new_content)
+             print("Successfully injected Info.plist keys.")
+          else:
+             print("ERROR: Could not find standard plist closing tags.")
+             exit(1)
+
+      - name: Install Pods (Fresh & Uncached)
+        run: |
+          cd ios/App
+          echo "Clearing Pod Cache to fix GitHub side issues..."
+          pod cache clean --all
+          pod install
+          cd ../..
+
+      - name: Install Apple Certificate
+        shell: python
+        env:
+          P12_BASE64: ${{ secrets.P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+        run: |
+          import os, base64, subprocess, re
+          raw_p12 = os.environ.get('P12_BASE64', '')
+          p12_content = re.sub(r'[^A-Za-z0-9+/=]', '', raw_p12)
+          with open('release.p12', 'wb') as f:
+              f.write(base64.b64decode(p12_content))
+          
+          pw = os.environ.get('P12_PASSWORD', 'MealMind2026')
+          subprocess.run(['security', 'create-keychain', '-p', pw, 'build.keychain'], check=True)
+          subprocess.run(['security', 'set-keychain-settings', '-lut', '21600', 'build.keychain'], check=True)
+          subprocess.run(['security', 'unlock-keychain', '-p', pw, 'build.keychain'], check=True)
+          subprocess.run(['security', 'import', 'release.p12', '-k', 'build.keychain', '-P', pw, '-A', '-t', 'cert', '-f', 'pkcs12'], check=True)
+          subprocess.run(['security', 'set-key-partition-list', '-S', 'apple-tool:,apple:,codesign:', '-s', '-k', pw, 'build.keychain'], check=True)
+
+      - name: Decode Provisioning Profile
+        shell: python
+        env:
+          PROVISION_BASE64: ${{ secrets.MOBILEPROVISION_BASE64 }}
+        run: |
+          import os, base64, re, plistlib
+          dest = os.path.expanduser('~/Library/MobileDevice/Provisioning Profiles')
+          os.makedirs(dest, exist_ok=True)
+          raw_pp = os.environ.get('PROVISION_BASE64', '')
+          pp_content = base64.b64decode(re.sub(r'[^A-Za-z0-9+/=]', '', raw_pp))
+          
+          start_tag = b'<?xml'
+          end_tag = b'</plist>'
+          start = pp_content.find(start_tag)
+          end = pp_content.find(end_tag) + len(end_tag)
+          plist_data = pp_content[start:end]
+          data = plistlib.loads(plist_data)
+          uuid = data['UUID']
+          
+          with open(os.path.join(dest, f"{uuid}.mobileprovision"), 'wb') as f:
+              f.write(pp_content)
+          
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write(f"PROVISION_UUID={uuid}\n")
+
+      - name: Build Archive
+        run: |
+          xcodebuild archive -workspace ios/App/App.xcworkspace \
+                     -scheme App \
+                     -sdk iphoneos \
+                     -configuration Release \
+                     -archivePath App.xcarchive \
+                     -destination 'generic/platform=iOS' \
+                     DEVELOPMENT_TEAM=${{ secrets.APPLE_DEVELOPMENT_TEAM_ID }} \
+                     CODE_SIGN_STYLE=Manual \
+                     CODE_SIGN_IDENTITY="Apple Distribution" \
+                     PROVISIONING_PROFILE_SPECIFIER=$PROVISION_UUID \
+                     IPHONEOS_DEPLOYMENT_TARGET=13.0 \
+                     -allowProvisioningUpdates
+
+          xcodebuild -exportArchive \
+                     -archivePath App.xcarchive \
+                     -exportOptionsPlist ios/App/App/ExportOptions.plist \
+                     -exportPath output \
+                     -allowProvisioningUpdates || true 
+                     # Note: The fresh cap add might not generate ExportOptions.plist exactly where we expect, 
+                     # so we might need to generate it on the fly if this fails, but typically we generate it manually like below.
+
+      - name: Generate ExportOptions (Safety Net)
+        if: failure() || success()
+        run: |
+          cat <<EOF > ExportOptions.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store</string>
+            <key>teamID</key>
+            <string>${{ secrets.APPLE_DEVELOPMENT_TEAM_ID }}</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.nesberry.mealgenna.pro</key>
+              <string>$PROVISION_UUID</string>
+            </dict>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>signingCertificate</key>
+            <string>Apple Distribution</string>
+          </dict>
+          </plist>
+          EOF
+          
+          xcodebuild -exportArchive \
+                     -archivePath App.xcarchive \
+                     -exportOptionsPlist ExportOptions.plist \
+                     -exportPath output \
+                     -allowProvisioningUpdates
+
+      - name: Upload .ipa Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mealgenna-ios-ipa
+          path: output/*.ipa

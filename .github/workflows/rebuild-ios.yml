@@ -31,58 +31,59 @@ jobs:
           npx cap add ios
           npx cap sync ios
 
+      - name: Patch project.pbxproj for Manual Signing
+        run: |
+          # Force ProvisioningStyle to Manual so xcodebuild arguments take effect
+          sed -i '' 's/ProvisioningStyle = Automatic;/ProvisioningStyle = Manual;/' ios/App/App.xcodeproj/project.pbxproj
+          echo "Patched project.pbxproj to enforce Manual Signing."
+
       - name: Inject Configuration into Info.plist
         shell: python
         run: |
-          import os
+          import os, plistlib
 
           # Data to inject
           admob_app_id = "ca-app-pub-6191158195654090~8707594177"
           tracking_desc = "This identifier will be used to deliver personalized ads to you."
           camera_desc = "This app uses the camera to scan ingredients for meal analysis."
+          
+          sk_items = [
+              {"SKAdNetworkIdentifier": "cstr6suwn9.skadnetwork"}
+          ]
 
           plist_path = "ios/App/App/Info.plist"
 
-          with open(plist_path, "r") as f:
-              content = f.read()
+          print(f"Reading {plist_path}...")
+          with open(plist_path, 'rb') as f:
+              plist_data = plistlib.load(f)
 
-          # Injection logic - simple string replacement for key locations
-          # We'll insert our keys right before the closing </dict> of the root dict
+          # Inject keys
+          plist_data['GADApplicationIdentifier'] = admob_app_id
+          plist_data['NSUserTrackingUsageDescription'] = tracking_desc
+          plist_data['NSCameraUsageDescription'] = camera_desc
           
-          insert_content = f"""
-          <key>GADApplicationIdentifier</key>
-          <string>{admob_app_id}</string>
-          <key>NSUserTrackingUsageDescription</key>
-          <string>{tracking_desc}</string>
-          <key>NSCameraUsageDescription</key>
-          <string>{camera_desc}</string>
-          <key>SKAdNetworkItems</key>
-          <array>
-            <dict>
-              <key>SKAdNetworkIdentifier</key>
-              <string>cstr6suwn9.skadnetwork</string>
-            </dict>
-          </array>
-          """
+          # Initialize or append SKAdNetworkItems
+          if 'SKAdNetworkItems' not in plist_data:
+              plist_data['SKAdNetworkItems'] = []
+          
+          # Avoid duplicates
+          existing_ids = [item.get('SKAdNetworkIdentifier') for item in plist_data['SKAdNetworkItems']]
+          for item in sk_items:
+              if item['SKAdNetworkIdentifier'] not in existing_ids:
+                  plist_data['SKAdNetworkItems'].append(item)
 
-          # Find the last </dict> and </plist>
-          # A standard Info.plist ends with </dict>\n</plist>
-          # We will replace the last occurrence of </dict> 
+          print("Writing updated Info.plist...")
+          with open(plist_path, 'wb') as f:
+              plistlib.dump(plist_data, f)
           
-          if "</dict>\n</plist>" in content:
-             new_content = content.replace("</dict>\n</plist>", insert_content + "</dict>\n</plist>")
-             with open(plist_path, "w") as f:
-                 f.write(new_content)
-             print("Successfully injected Info.plist keys.")
-          else:
-             print("ERROR: Could not find standard plist closing tags.")
-             exit(1)
+          print("Successfully injected Info.plist keys via plistlib.")
 
       - name: Install Pods (Fresh & Uncached)
         run: |
           cd ios/App
           echo "Clearing Pod Cache to fix GitHub side issues..."
           pod cache clean --all
+          pod repo update
           pod install
           cd ../..
 
@@ -130,8 +131,9 @@ jobs:
           with open(os.environ['GITHUB_ENV'], 'a') as f:
               f.write(f"PROVISION_UUID={uuid}\n")
 
-      - name: Build Archive
+      - name: Build Archive (Verbose)
         run: |
+          echo "Building with -verbose for debugging..."
           xcodebuild archive -workspace ios/App/App.xcworkspace \
                      -scheme App \
                      -sdk iphoneos \
@@ -143,19 +145,12 @@ jobs:
                      CODE_SIGN_IDENTITY="Apple Distribution" \
                      PROVISIONING_PROFILE_SPECIFIER=$PROVISION_UUID \
                      IPHONEOS_DEPLOYMENT_TARGET=13.0 \
-                     -allowProvisioningUpdates
+                     -allowProvisioningUpdates \
+                     -verbose
 
-          xcodebuild -exportArchive \
-                     -archivePath App.xcarchive \
-                     -exportOptionsPlist ios/App/App/ExportOptions.plist \
-                     -exportPath output \
-                     -allowProvisioningUpdates || true 
-                     # Note: The fresh cap add might not generate ExportOptions.plist exactly where we expect, 
-                     # so we might need to generate it on the fly if this fails, but typically we generate it manually like below.
-
-      - name: Generate ExportOptions (Safety Net)
-        if: failure() || success()
+      - name: Export Archive
         run: |
+          # Generate ExportOptions.plist dynamically
           cat <<EOF > ExportOptions.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -185,6 +180,7 @@ jobs:
                      -allowProvisioningUpdates
 
       - name: Upload .ipa Artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: mealgenna-ios-ipa
